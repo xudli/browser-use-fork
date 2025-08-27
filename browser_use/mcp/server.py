@@ -200,35 +200,59 @@ class BrowserUseServer:
 
 		@self.server.list_tools()
 		async def handle_list_tools() -> list[types.Tool]:
-			"""List all available browser-use tools."""
+			"""List all available browser-use tools.
+			
+			WORKFLOW GUIDE:
+			1. Start with browser_navigate to go to a webpage
+			2. Use browser_get_state to see page structure and get element indices
+			3. Interact with elements using browser_click, browser_type, browser_scroll
+			4. Extract information using browser_extract_content
+			5. Manage tabs with browser_list_tabs, browser_switch_tab, browser_close_tab
+			6. Use retry_with_browser_use_agent for complex multi-step tasks
+			"""
 			return [
-				# Agent tools
-				# Direct browser control tools
+				# Navigation and Core Control
 				types.Tool(
 					name='browser_navigate',
-					description='Navigate to a URL in the browser',
+					description='[STEP 1] Navigate to a URL in the browser. This is typically your first action. Use new_tab=true to open in a new tab without closing the current page.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'url': {'type': 'string', 'description': 'The URL to navigate to'},
-							'new_tab': {'type': 'boolean', 'description': 'Whether to open in a new tab', 'default': False},
+							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://)'},
+							'new_tab': {'type': 'boolean', 'description': 'Whether to open in a new tab (default: false)', 'default': False},
 						},
 						'required': ['url'],
 					},
 				),
 				types.Tool(
+					name='browser_get_state',
+					description='[STEP 2] Get the current page structure and all interactive elements with their indices. ALWAYS call this before interacting with elements to get their index numbers. Essential for browser_click and browser_type.',
+					inputSchema={
+						'type': 'object',
+						'properties': {
+							'include_screenshot': {
+								'type': 'boolean',
+								'description': 'Include a base64 screenshot for visual debugging (default: false)',
+								'default': False,
+							}
+						},
+					},
+				),
+				
+				# Element Interaction
+				types.Tool(
 					name='browser_click',
-					description='Click an element on the page by its index',
+					description='[STEP 3A] Click an element by its index. First call browser_get_state to get element indices. Use for buttons, links, checkboxes, etc.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
 							'index': {
 								'type': 'integer',
-								'description': 'The index of the link or element to click (from browser_get_state)',
+								'description': 'The index number of the element to click (obtained from browser_get_state)',
 							},
 							'new_tab': {
 								'type': 'boolean',
-								'description': 'Whether to open any resulting navigation in a new tab',
+								'description': 'For links: open in new tab instead of current tab (default: false)',
 								'default': False,
 							},
 						},
@@ -237,128 +261,115 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_type',
-					description='Type text into an input field',
+					description='[STEP 3B] Type text into input fields, textareas, or search boxes. First call browser_get_state to get the input element index.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
 							'index': {
 								'type': 'integer',
-								'description': 'The index of the input element (from browser_get_state)',
+								'description': 'The index number of the input element (obtained from browser_get_state)',
 							},
-							'text': {'type': 'string', 'description': 'The text to type'},
+							'text': {'type': 'string', 'description': 'The text to type into the input field'},
 						},
 						'required': ['index', 'text'],
 					},
 				),
 				types.Tool(
-					name='browser_get_state',
-					description='Get the current state of the page including all interactive elements',
-					inputSchema={
-						'type': 'object',
-						'properties': {
-							'include_screenshot': {
-								'type': 'boolean',
-								'description': 'Whether to include a screenshot of the current page',
-								'default': False,
-							}
-						},
-					},
-				),
-				types.Tool(
-					name='browser_extract_content',
-					description='Extract structured content from the current page based on a query',
-					inputSchema={
-						'type': 'object',
-						'properties': {
-							'query': {'type': 'string', 'description': 'What information to extract from the page'},
-							'extract_links': {
-								'type': 'boolean',
-								'description': 'Whether to include links in the extraction',
-								'default': False,
-							},
-						},
-						'required': ['query'],
-					},
-				),
-				types.Tool(
 					name='browser_scroll',
-					description='Scroll the page',
+					description='[STEP 3C] Scroll the page to reveal more content. Use when elements are not visible or you need to see more of the page.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
 							'direction': {
 								'type': 'string',
 								'enum': ['up', 'down'],
-								'description': 'Direction to scroll',
+								'description': 'Scroll direction (default: down)',
 								'default': 'down',
 							}
 						},
 					},
 				),
+				
+				# Content Extraction
+				types.Tool(
+					name='browser_extract_content',
+					description='[STEP 4] Extract and structure specific information from the current page using AI. Specify what data you want to extract (e.g., "product prices", "news headlines", "contact info").',
+					inputSchema={
+						'type': 'object',
+						'properties': {
+							'query': {'type': 'string', 'description': 'Describe what information to extract (e.g., "all product names and prices", "article title and summary")'},
+							'extract_links': {
+								'type': 'boolean',
+								'description': 'Whether to include URLs/links in the extracted content (default: false)',
+								'default': False,
+							},
+						},
+						'required': ['query'],
+					},
+				),
+				
+				# Navigation History
 				types.Tool(
 					name='browser_go_back',
-					description='Go back to the previous page',
+					description='Go back to the previous page in browser history. Use when you need to return to a previous page.',
 					inputSchema={'type': 'object', 'properties': {}},
 				),
-				# Tab management
+				
+				# Tab Management
 				types.Tool(
-					name='browser_list_tabs', description='List all open tabs', inputSchema={'type': 'object', 'properties': {}}
+					name='browser_list_tabs', 
+					description='List all currently open browser tabs with their IDs, URLs, and titles. Use to see what tabs are available for switching.',
+					inputSchema={'type': 'object', 'properties': {}}
 				),
 				types.Tool(
 					name='browser_switch_tab',
-					description='Switch to a different tab',
+					description='Switch to a different browser tab. First call browser_list_tabs to get available tab IDs.',
 					inputSchema={
 						'type': 'object',
-						'properties': {'tab_id': {'type': 'string', 'description': '4 Character Tab ID of the tab to switch to'}},
+						'properties': {'tab_id': {'type': 'string', 'description': '4-character tab ID from browser_list_tabs (e.g., "A1B2")'}},
 						'required': ['tab_id'],
 					},
 				),
 				types.Tool(
 					name='browser_close_tab',
-					description='Close a tab',
+					description='Close a specific browser tab. First call browser_list_tabs to get the tab ID you want to close.',
 					inputSchema={
 						'type': 'object',
-						'properties': {'tab_id': {'type': 'string', 'description': '4 Character Tab ID of the tab to close'}},
+						'properties': {'tab_id': {'type': 'string', 'description': '4-character tab ID from browser_list_tabs (e.g., "A1B2")'}},
 						'required': ['tab_id'],
 					},
 				),
-				# types.Tool(
-				# 	name="browser_close",
-				# 	description="Close the browser session",
-				# 	inputSchema={
-				# 		"type": "object",
-				# 		"properties": {}
-				# 	}
-				# ),
+				
+				# AI Agent for Complex Tasks
 				types.Tool(
 					name='retry_with_browser_use_agent',
-					description='Retry a task using the browser-use agent. Only use this as a last resort if you fail to interact with a page multiple times.',
+					description='[ADVANCED] Use an autonomous AI agent to complete complex multi-step browser tasks. Only use as a last resort when manual tool combinations fail. The agent can plan and execute multiple actions automatically.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
 							'task': {
 								'type': 'string',
-								'description': 'The high-level goal and detailed step-by-step description of the task the AI browser agent needs to attempt, along with any relevant data needed to complete the task and info about previous attempts.',
+								'description': 'Detailed description of the complete task to accomplish, including context and previous attempts. Be specific about the goal and any data needed.',
 							},
 							'max_steps': {
 								'type': 'integer',
-								'description': 'Maximum number of steps the agent can take',
+								'description': 'Maximum number of actions the agent can take (default: 100, recommended: 10-50 for most tasks)',
 								'default': 100,
 							},
 							'model': {
 								'type': 'string',
-								'description': 'LLM model to use (e.g., gpt-4o, claude-3-opus-20240229)',
+								'description': 'LLM model for the agent (default: gpt-4o, alternatives: claude-3-sonnet-20240229, gpt-4o-mini)',
 								'default': 'gpt-4o',
 							},
 							'allowed_domains': {
 								'type': 'array',
 								'items': {'type': 'string'},
-								'description': 'List of domains the agent is allowed to visit (security feature)',
+								'description': 'List of domains the agent can visit (security feature, empty = no restrictions)',
 								'default': [],
 							},
 							'use_vision': {
 								'type': 'boolean',
-								'description': 'Whether to use vision capabilities (screenshots) for the agent',
+								'description': 'Enable screenshot analysis for better page understanding (default: true)',
 								'default': True,
 							},
 						},
