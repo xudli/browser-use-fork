@@ -208,7 +208,6 @@ class BrowserUseServer:
 			3. Interact with elements using browser_click, browser_type, browser_scroll
 			4. Extract information using browser_extract_content
 			5. Manage tabs with browser_list_tabs, browser_switch_tab, browser_close_tab
-			6. Use retry_with_browser_use_agent for complex multi-step tasks
 			"""
 			return [
 				# Navigation and Core Control
@@ -339,43 +338,6 @@ class BrowserUseServer:
 						'required': ['tab_id'],
 					},
 				),
-				
-				# AI Agent for Complex Tasks
-				types.Tool(
-					name='retry_with_browser_use_agent',
-					description='[ADVANCED] Use an autonomous AI agent to complete complex multi-step browser tasks. Only use as a last resort when manual tool combinations fail. The agent can plan and execute multiple actions automatically.',
-					inputSchema={
-						'type': 'object',
-						'properties': {
-							'task': {
-								'type': 'string',
-								'description': 'Detailed description of the complete task to accomplish, including context and previous attempts. Be specific about the goal and any data needed.',
-							},
-							'max_steps': {
-								'type': 'integer',
-								'description': 'Maximum number of actions the agent can take (default: 100, recommended: 10-50 for most tasks)',
-								'default': 100,
-							},
-							'model': {
-								'type': 'string',
-								'description': 'LLM model for the agent (default: gpt-4o, alternatives: claude-3-sonnet-20240229, gpt-4o-mini)',
-								'default': 'gpt-4o',
-							},
-							'allowed_domains': {
-								'type': 'array',
-								'items': {'type': 'string'},
-								'description': 'List of domains the agent can visit (security feature, empty = no restrictions)',
-								'default': [],
-							},
-							'use_vision': {
-								'type': 'boolean',
-								'description': 'Enable screenshot analysis for better page understanding (default: true)',
-								'default': True,
-							},
-						},
-						'required': ['task'],
-					},
-				),
 			]
 
 		@self.server.call_tool()
@@ -405,16 +367,6 @@ class BrowserUseServer:
 
 	async def _execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> str:
 		"""Execute a browser-use tool."""
-
-		# Agent-based tools
-		if tool_name == 'retry_with_browser_use_agent':
-			return await self._retry_with_browser_use_agent(
-				task=arguments['task'],
-				max_steps=arguments.get('max_steps', 100),
-				model=arguments.get('model', 'gpt-4o'),
-				allowed_domains=arguments.get('allowed_domains', []),
-				use_vision=arguments.get('use_vision', True),
-			)
 
 		# Direct browser control tools (require active session)
 		if tool_name.startswith('browser_'):

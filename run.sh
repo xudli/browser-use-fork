@@ -39,7 +39,7 @@ case "$1" in
         ;;
     "build")
         echo "🏗️ Building browser-use MCP HTTP server image..."
-        $DOCKER_COMPOSE build --no-cache
+        $DOCKER_COMPOSE build
         echo "✅ Build completed!"
         ;;
     "logs")
