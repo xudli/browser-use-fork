@@ -202,12 +202,14 @@ class BrowserUseServer:
 		async def handle_list_tools() -> list[types.Tool]:
 			"""List all available browser-use tools.
 			
-			WORKFLOW GUIDE:
-			1. Start with browser_navigate to go to a webpage (Google Search recommended: https://www.google.com)
-			2. Use browser_get_state to see page structure and get element indices
-			3. Interact with elements using browser_click, browser_type, browser_scroll
-			4. Extract information using browser_extract_content
-			5. Manage tabs with browser_list_tabs, browser_switch_tab, browser_close_tab
+			CRITICAL WORKFLOW - FOLLOW THIS SEQUENCE EXACTLY:
+			1. browser_navigate → Navigate to URL (start with https://www.google.com for searches)
+			2. browser_get_state → MANDATORY after navigation - get page structure and element indices  
+			3. browser_click/browser_type → Interact with elements (requires indices from step 2)
+			4. browser_extract_content → Extract information after interactions
+			
+			⚠️  NEVER skip browser_get_state after browser_navigate! Always call it to get element indices before any interaction.
+			⚠️  NEVER use browser_type or browser_click without first calling browser_get_state to get element indices.
 			
 			SEARCH STRATEGY:
 			- Primary: Use Google Search (https://www.google.com) for broad information gathering
@@ -217,11 +219,11 @@ class BrowserUseServer:
 				# Navigation and Core Control
 				types.Tool(
 					name='browser_navigate',
-					description='[STEP 1] Navigate to a URL in the browser. RECOMMENDED: Start with Google Search (https://www.google.com) to find information, then navigate to specific sites as needed. Use new_tab=true to keep search results open.',
+					description='[STEP 1 - REQUIRED] Navigate to a URL in the browser. RECOMMENDED: Start with Google Search (https://www.google.com) for searches. ⚠️ CRITICAL: You MUST call browser_get_state immediately after this to get element indices before any interaction!',
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). Recommended: https://www.google.com for searches'},
+							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). STRONGLY RECOMMENDED: Start with https://www.google.com for searches and information gathering'},
 							'new_tab': {'type': 'boolean', 'description': 'Whether to open in a new tab (default: false)', 'default': False},
 						},
 						'required': ['url'],
@@ -229,7 +231,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_get_state',
-					description='[STEP 2] Get the current page structure and all interactive elements with their indices. ALWAYS call this before interacting with elements to get their index numbers. Essential for browser_click and browser_type.',
+					description='[STEP 2 - MANDATORY AFTER NAVIGATE] Get the current page structure and all interactive elements with their indices. ⚠️ REQUIRED: Call this IMMEDIATELY after browser_navigate and before ANY browser_click or browser_type actions! This is the only way to get element indices.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -245,7 +247,7 @@ class BrowserUseServer:
 				# Element Interaction
 				types.Tool(
 					name='browser_click',
-					description='[STEP 3A] Click an element by its index. First call browser_get_state to get element indices. Use for buttons, links, checkboxes, etc. TIP: Click on Google search results to visit relevant websites.',
+					description='[STEP 3A - REQUIRES browser_get_state FIRST] Click an element by its index. ⚠️ PREREQUISITE: You MUST call browser_get_state first to get valid element indices. This will FAIL without proper indices from browser_get_state.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -264,7 +266,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_type',
-					description='[STEP 3B] Type text into input fields, textareas, or search boxes. SEARCH STRATEGY: 1) Use Google search box first for general queries, 2) Use site-specific search for detailed information within a particular website.',
+					description='[STEP 3B - REQUIRES browser_get_state FIRST] Type text into input fields. ⚠️ PREREQUISITE: You MUST call browser_get_state first to get valid element indices. This will FAIL without proper indices. WORKFLOW: navigate → get_state → type.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -272,14 +274,14 @@ class BrowserUseServer:
 								'type': 'integer',
 								'description': 'The index number of the input element (obtained from browser_get_state)',
 							},
-							'text': {'type': 'string', 'description': 'The text to type. For searches: use descriptive keywords, add "site:domain.com" to limit to specific sites'},
+							'text': {'type': 'string', 'description': 'The text to type. SEARCH TIP: For Google searches use descriptive keywords. Add "site:domain.com" to limit to specific sites.'},
 						},
 						'required': ['index', 'text'],
 					},
 				),
 				types.Tool(
 					name='browser_scroll',
-					description='[STEP 3C] Scroll the page to reveal more content. Use when elements are not visible or you need to see more search results.',
+					description='[STEP 3C - OPTIONAL] Scroll the page to reveal more content. Use when elements are not visible or you need to see more content. Can be used without browser_get_state.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -296,7 +298,7 @@ class BrowserUseServer:
 				# Content Extraction
 				types.Tool(
 					name='browser_extract_content',
-					description='[STEP 4] Extract and structure specific information from the current page using AI. BEST PRACTICE: After finding relevant pages through Google search, use this to extract the specific data you need.',
+					description='[STEP 4 - AFTER INTERACTIONS] Extract and structure specific information from the current page using AI. BEST PRACTICE: Use this after navigating and potentially interacting with the page to get the data you need.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -314,7 +316,7 @@ class BrowserUseServer:
 				# Navigation History
 				types.Tool(
 					name='browser_go_back',
-					description='Go back to the previous page in browser history. Use to return to Google search results after visiting a specific site.',
+					description='Go back to the previous page in browser history. USEFUL: Return to Google search results after visiting a specific site to continue searching.',
 					inputSchema={'type': 'object', 'properties': {}},
 				),
 				
