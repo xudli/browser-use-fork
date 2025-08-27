@@ -203,21 +203,25 @@ class BrowserUseServer:
 			"""List all available browser-use tools.
 			
 			WORKFLOW GUIDE:
-			1. Start with browser_navigate to go to a webpage
+			1. Start with browser_navigate to go to a webpage (Google Search recommended: https://www.google.com)
 			2. Use browser_get_state to see page structure and get element indices
 			3. Interact with elements using browser_click, browser_type, browser_scroll
 			4. Extract information using browser_extract_content
 			5. Manage tabs with browser_list_tabs, browser_switch_tab, browser_close_tab
+			
+			SEARCH STRATEGY:
+			- Primary: Use Google Search (https://www.google.com) for broad information gathering
+			- Secondary: Use site-specific search when you need detailed info from a particular website
 			"""
 			return [
 				# Navigation and Core Control
 				types.Tool(
 					name='browser_navigate',
-					description='[STEP 1] Navigate to a URL in the browser. This is typically your first action. Use new_tab=true to open in a new tab without closing the current page.',
+					description='[STEP 1] Navigate to a URL in the browser. RECOMMENDED: Start with Google Search (https://www.google.com) to find information, then navigate to specific sites as needed. Use new_tab=true to keep search results open.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://)'},
+							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). Recommended: https://www.google.com for searches'},
 							'new_tab': {'type': 'boolean', 'description': 'Whether to open in a new tab (default: false)', 'default': False},
 						},
 						'required': ['url'],
@@ -241,7 +245,7 @@ class BrowserUseServer:
 				# Element Interaction
 				types.Tool(
 					name='browser_click',
-					description='[STEP 3A] Click an element by its index. First call browser_get_state to get element indices. Use for buttons, links, checkboxes, etc.',
+					description='[STEP 3A] Click an element by its index. First call browser_get_state to get element indices. Use for buttons, links, checkboxes, etc. TIP: Click on Google search results to visit relevant websites.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -251,7 +255,7 @@ class BrowserUseServer:
 							},
 							'new_tab': {
 								'type': 'boolean',
-								'description': 'For links: open in new tab instead of current tab (default: false)',
+								'description': 'For links: open in new tab instead of current tab (default: false). Recommended for search results.',
 								'default': False,
 							},
 						},
@@ -260,7 +264,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_type',
-					description='[STEP 3B] Type text into input fields, textareas, or search boxes. First call browser_get_state to get the input element index.',
+					description='[STEP 3B] Type text into input fields, textareas, or search boxes. SEARCH STRATEGY: 1) Use Google search box first for general queries, 2) Use site-specific search for detailed information within a particular website.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -268,14 +272,14 @@ class BrowserUseServer:
 								'type': 'integer',
 								'description': 'The index number of the input element (obtained from browser_get_state)',
 							},
-							'text': {'type': 'string', 'description': 'The text to type into the input field'},
+							'text': {'type': 'string', 'description': 'The text to type. For searches: use descriptive keywords, add "site:domain.com" to limit to specific sites'},
 						},
 						'required': ['index', 'text'],
 					},
 				),
 				types.Tool(
 					name='browser_scroll',
-					description='[STEP 3C] Scroll the page to reveal more content. Use when elements are not visible or you need to see more of the page.',
+					description='[STEP 3C] Scroll the page to reveal more content. Use when elements are not visible or you need to see more search results.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -292,14 +296,14 @@ class BrowserUseServer:
 				# Content Extraction
 				types.Tool(
 					name='browser_extract_content',
-					description='[STEP 4] Extract and structure specific information from the current page using AI. Specify what data you want to extract (e.g., "product prices", "news headlines", "contact info").',
+					description='[STEP 4] Extract and structure specific information from the current page using AI. BEST PRACTICE: After finding relevant pages through Google search, use this to extract the specific data you need.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'query': {'type': 'string', 'description': 'Describe what information to extract (e.g., "all product names and prices", "article title and summary")'},
+							'query': {'type': 'string', 'description': 'Describe what information to extract (e.g., "all product names and prices", "article title and summary", "search result titles and URLs")'},
 							'extract_links': {
 								'type': 'boolean',
-								'description': 'Whether to include URLs/links in the extracted content (default: false)',
+								'description': 'Whether to include URLs/links in the extracted content (default: false). Useful for collecting search results.',
 								'default': False,
 							},
 						},
@@ -310,19 +314,19 @@ class BrowserUseServer:
 				# Navigation History
 				types.Tool(
 					name='browser_go_back',
-					description='Go back to the previous page in browser history. Use when you need to return to a previous page.',
+					description='Go back to the previous page in browser history. Use to return to Google search results after visiting a specific site.',
 					inputSchema={'type': 'object', 'properties': {}},
 				),
 				
 				# Tab Management
 				types.Tool(
 					name='browser_list_tabs', 
-					description='List all currently open browser tabs with their IDs, URLs, and titles. Use to see what tabs are available for switching.',
+					description='List all currently open browser tabs with their IDs, URLs, and titles. Use to manage multiple search results and websites.',
 					inputSchema={'type': 'object', 'properties': {}}
 				),
 				types.Tool(
 					name='browser_switch_tab',
-					description='Switch to a different browser tab. First call browser_list_tabs to get available tab IDs.',
+					description='Switch to a different browser tab. Useful for comparing information from different search results or websites.',
 					inputSchema={
 						'type': 'object',
 						'properties': {'tab_id': {'type': 'string', 'description': '4-character tab ID from browser_list_tabs (e.g., "A1B2")'}},
@@ -331,7 +335,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_close_tab',
-					description='Close a specific browser tab. First call browser_list_tabs to get the tab ID you want to close.',
+					description='Close a specific browser tab. Clean up tabs that are no longer needed to keep your search organized.',
 					inputSchema={
 						'type': 'object',
 						'properties': {'tab_id': {'type': 'string', 'description': '4-character tab ID from browser_list_tabs (e.g., "A1B2")'}},
