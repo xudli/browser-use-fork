@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  browser-use-mcp-http:
+    build:
+      context: .
+      dockerfile: Dockerfile.http
+    container_name: browser-use-mcp-http
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Override specific environment variables for container
+      - DISPLAY=:99
+      - PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+      # Browser-use specific settings
+      - BROWSER_USE_LOGGING_LEVEL=error
+      - BROWSER_USE_SETUP_LOGGING=false
+      - BROWSER_USE_HEADLESS=true
+      - BROWSER_USE_DISABLE_SECURITY=true
+      # Chrome stability flags
+      - PLAYWRIGHT_CHROMIUM_ARGS=--no-sandbox --disable-dev-shm-usage --disable-gpu --disable-web-security --disable-features=VizDisplayCompositor --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-field-trial-config
+    volumes:
+      # Mount downloads directory
+      - ./downloads:/app/downloads
+      # Mount browser profiles directory  
+      - ./profiles:/app/profiles
+      # Optional: mount logs directory
+      - ./logs:/app/logs
+      # Mount Playwright browser cache
+      - playwright-browsers:/root/.cache/ms-playwright
+    # Increase shared memory size for Chrome stability
+    shm_size: 1gb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/mcp"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Limit resources
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # Network settings
+    networks:
+      - browser-use-network
+
+# Create a custom network
+networks:
+  browser-use-network:
+    driver: bridge
+
+# Define volumes
+volumes:
+  playwright-browsers:
+    driver: local

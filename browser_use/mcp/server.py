@@ -857,7 +857,7 @@ class BrowserUseServer:
 
 		import uvicorn
 
-		config = uvicorn.Config(starlette_app, host='127.0.0.1', port=port, loop='asyncio')
+		config = uvicorn.Config(starlette_app, host='0.0.0.0', port=port, loop='asyncio')
 		server = uvicorn.Server(config)
 		await server.serve()
 

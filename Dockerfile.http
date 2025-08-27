@@ -1,0 +1,64 @@
+# Dockerfile for browser-use MCP HTTP server
+FROM python:3.12-slim-bookworm
+
+# Install system dependencies needed for browser automation
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    unzip \
+    curl \
+    xvfb \
+    xauth \
+    dbus-x11 \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libdrm2 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libxss1 \
+    libxtst6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (fast Python package installer)
+RUN pip install uv
+
+# Set working directory
+WORKDIR /app
+
+# Copy project files
+COPY . .
+
+# Install Python dependencies using uv
+RUN uv sync --no-dev
+
+# Install Chromium using playwright as root
+RUN uvx playwright install chromium --with-deps --no-shell
+
+# Create directories for browser data
+RUN mkdir -p /app/downloads /app/profiles
+
+# Expose port
+EXPOSE 3000
+
+# Set environment variables for headless Chromium
+ENV DISPLAY=:99
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+ENV BROWSER_USE_HEADLESS=true
+ENV BROWSER_USE_DISABLE_SECURITY=true
+# Additional Chrome stability flags for container
+ENV PLAYWRIGHT_CHROMIUM_ARGS="--no-sandbox --disable-dev-shm-usage --disable-gpu --disable-web-security --disable-features=VizDisplayCompositor --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-field-trial-config"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/mcp || exit 1
+
+# Start Xvfb and the MCP server with proper error handling
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp -dpi 96 > /dev/null 2>&1 & sleep 2 && exec uv run python -m browser_use.mcp.server --http --port 3000 --json-response"]
