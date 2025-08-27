@@ -202,24 +202,32 @@ class BrowserUseServer:
 		async def handle_list_tools() -> list[types.Tool]:
 			"""List all available browser-use tools.
 			
-			CRITICAL WORKFLOW - FOLLOW THIS SEQUENCE EXACTLY:
-			1. browser_navigate → Navigate to URL (start with https://www.google.com for searches)
-			2. browser_get_state → MANDATORY after navigation - get page structure and element indices  
-			3. browser_click/browser_type → Interact with elements (requires indices from step 2)
-			4. browser_extract_content → Extract information after interactions
+			🚨 MANDATORY SEQUENCE - NO EXCEPTIONS ALLOWED:
+			1. browser_navigate → Navigate to URL 
+			2. browser_get_state → ❗ ABSOLUTELY REQUIRED NEXT - NO OTHER TOOLS ALLOWED UNTIL THIS IS CALLED
+			3. Only then: browser_click, browser_type, browser_scroll, browser_extract_content
 			
-			⚠️  NEVER skip browser_get_state after browser_navigate! Always call it to get element indices before any interaction.
-			⚠️  NEVER use browser_type or browser_click without first calling browser_get_state to get element indices.
+			🚨 CRITICAL RULES:
+			- After browser_navigate: browser_get_state is THE ONLY valid next tool
+			- browser_click WILL FAIL without browser_get_state (no element indices available)
+			- browser_type WILL FAIL without browser_get_state (no element indices available) 
+			- browser_extract_content works better after browser_get_state (page fully loaded)
 			
-			SEARCH STRATEGY:
-			- Primary: Use Google Search (https://www.google.com) for broad information gathering
-			- Secondary: Use site-specific search when you need detailed info from a particular website
+			🚨 FORBIDDEN SEQUENCES (THESE WILL CAUSE ERRORS):
+			- browser_navigate → browser_click ❌ 
+			- browser_navigate → browser_type ❌
+			- browser_navigate → browser_extract_content ❌ (should call browser_get_state first)
+			
+			✅ CORRECT SEQUENCE:
+			browser_navigate → browser_get_state → [other tools]
+			
+			SEARCH STRATEGY: Start with https://www.google.com for information gathering
 			"""
 			return [
 				# Navigation and Core Control
 				types.Tool(
 					name='browser_navigate',
-					description='[STEP 1 - REQUIRED] Navigate to a URL in the browser. RECOMMENDED: Start with Google Search (https://www.google.com) for searches. ⚠️ CRITICAL: You MUST call browser_get_state immediately after this to get element indices before any interaction!',
+					description='[STEP 1] 🚨 Navigate to URL. ❗ CRITICAL: The ONLY valid next tool is browser_get_state. DO NOT call browser_click, browser_type, or browser_extract_content until browser_get_state is called first!',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -231,7 +239,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_get_state',
-					description='[STEP 2 - MANDATORY AFTER NAVIGATE] Get the current page structure and all interactive elements with their indices. ⚠️ REQUIRED: Call this IMMEDIATELY after browser_navigate and before ANY browser_click or browser_type actions! This is the only way to get element indices.',
+					description='[STEP 2] 🚨 MANDATORY AFTER browser_navigate. This is THE ONLY tool allowed after navigation! Gets page structure and element indices required for ALL other interactions.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -247,7 +255,7 @@ class BrowserUseServer:
 				# Element Interaction
 				types.Tool(
 					name='browser_click',
-					description='[STEP 3A - REQUIRES browser_get_state FIRST] Click an element by its index. ⚠️ PREREQUISITE: You MUST call browser_get_state first to get valid element indices. This will FAIL without proper indices from browser_get_state.',
+					description='[STEP 3A] ❌ WILL FAIL if browser_get_state not called first! Click element by index. PREREQUISITE: browser_navigate → browser_get_state → browser_click.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -266,7 +274,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_type',
-					description='[STEP 3B - REQUIRES browser_get_state FIRST] Type text into input fields. ⚠️ PREREQUISITE: You MUST call browser_get_state first to get valid element indices. This will FAIL without proper indices. WORKFLOW: navigate → get_state → type.',
+					description='[STEP 3B] ❌ WILL FAIL if browser_get_state not called first! Type text into input fields. PREREQUISITE: browser_navigate → browser_get_state → browser_type.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -298,7 +306,7 @@ class BrowserUseServer:
 				# Content Extraction
 				types.Tool(
 					name='browser_extract_content',
-					description='[STEP 4 - AFTER INTERACTIONS] Extract and structure specific information from the current page using AI. BEST PRACTICE: Use this after navigating and potentially interacting with the page to get the data you need.',
+					description='[STEP 4] Extract content from page. 🔥 BEST PRACTICE: Call browser_get_state first to ensure page is fully loaded! Recommended sequence: browser_navigate → browser_get_state → browser_extract_content.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
