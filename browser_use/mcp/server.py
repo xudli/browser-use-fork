@@ -203,27 +203,26 @@ class BrowserUseServer:
 			"""List all available browser-use tools.
 			
 			WORKFLOW GUIDE:
-			1. Start with browser_navigate using Google Search URL: https://www.google.com/search?q=your+search+terms
+			1. Start with browser_navigate to go to a webpage (Google Search recommended: https://www.google.com)
 			2. Use browser_get_state to see page structure and get element indices
 			3. Interact with elements using browser_click, browser_type, browser_scroll
 			4. Extract information using browser_extract_content
 			5. Manage tabs with browser_list_tabs, browser_switch_tab, browser_close_tab
 			
 			SEARCH STRATEGY:
-			- Primary: Use Google Search direct URL: https://www.google.com/search?q=your+search+terms (replace spaces with +)
+			- Primary: Use Google Search (https://www.google.com) for broad information gathering
 			- Secondary: Use site-specific search when you need detailed info from a particular website
-			- Advanced: Add site:domain.com to limit search to specific sites
 			"""
 			return [
 				# Navigation and Core Control
 				types.Tool(
 					name='browser_navigate',
-					description='[STEP 1] Navigate to a URL in the browser. EFFICIENT SEARCH: Use direct Google search URLs like "https://www.google.com/search?q=your+search+terms" (replace spaces with +). This skips the need to find and click search boxes. Use new_tab=true to keep results open.',
+					description='[STEP 1] Navigate to a URL in the browser. RECOMMENDED: Start with Google Search (https://www.google.com) to find information, then navigate to specific sites as needed. Use new_tab=true to keep search results open.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). For Google searches: https://www.google.com/search?q=search+terms+here (replace spaces with +)'},
-							'new_tab': {'type': 'boolean', 'description': 'Whether to open in a new tab (default: false). Recommended for search results.', 'default': False},
+							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). Recommended: https://www.google.com for searches'},
+							'new_tab': {'type': 'boolean', 'description': 'Whether to open in a new tab (default: false)', 'default': False},
 						},
 						'required': ['url'],
 					},
@@ -246,7 +245,7 @@ class BrowserUseServer:
 				# Element Interaction
 				types.Tool(
 					name='browser_click',
-					description='[STEP 3A] Click an element by its index. First call browser_get_state to get element indices. Use for buttons, links, checkboxes, etc. TIP: Click on Google search result links to visit relevant websites.',
+					description='[STEP 3A] Click an element by its index. First call browser_get_state to get element indices. Use for buttons, links, checkboxes, etc. TIP: Click on Google search results to visit relevant websites.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -256,7 +255,7 @@ class BrowserUseServer:
 							},
 							'new_tab': {
 								'type': 'boolean',
-								'description': 'For links: open in new tab instead of current tab (default: false). Recommended for search results to keep Google page open.',
+								'description': 'For links: open in new tab instead of current tab (default: false). Recommended for search results.',
 								'default': False,
 							},
 						},
@@ -265,7 +264,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_type',
-					description='[STEP 3B] Type text into input fields, textareas, or search boxes. SEARCH TIP: For Google, use direct URLs (browser_navigate) instead of typing in search box. Use this for site-specific searches or form inputs.',
+					description='[STEP 3B] Type text into input fields, textareas, or search boxes. SEARCH STRATEGY: 1) Use Google search box first for general queries, 2) Use site-specific search for detailed information within a particular website.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -273,7 +272,7 @@ class BrowserUseServer:
 								'type': 'integer',
 								'description': 'The index number of the input element (obtained from browser_get_state)',
 							},
-							'text': {'type': 'string', 'description': 'The text to type. For site searches: use descriptive keywords'},
+							'text': {'type': 'string', 'description': 'The text to type. For searches: use descriptive keywords, add "site:domain.com" to limit to specific sites'},
 						},
 						'required': ['index', 'text'],
 					},
@@ -301,10 +300,10 @@ class BrowserUseServer:
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'query': {'type': 'string', 'description': 'Describe what information to extract (e.g., "search result titles and URLs", "article content", "product details")'},
+							'query': {'type': 'string', 'description': 'Describe what information to extract (e.g., "all product names and prices", "article title and summary", "search result titles and URLs")'},
 							'extract_links': {
 								'type': 'boolean',
-								'description': 'Whether to include URLs/links in the extracted content (default: false). Very useful for collecting search results.',
+								'description': 'Whether to include URLs/links in the extracted content (default: false). Useful for collecting search results.',
 								'default': False,
 							},
 						},
