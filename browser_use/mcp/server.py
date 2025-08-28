@@ -228,7 +228,7 @@ class BrowserUseServer:
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). STRONGLY RECOMMENDED: Start with https://www.google.com for searches and information gathering'},
+							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). STRONGLY RECOMMENDED: Start with https://www.google.com for searches and information gathering. ⚠️ AVOID URL query parameters like "site.com?q=search" - use proper search interfaces instead.'},
 							'new_tab': {'type': 'boolean', 'description': 'Whether to open in a new tab (default: false)', 'default': False},
 						},
 						'required': ['url'],
@@ -279,7 +279,7 @@ class BrowserUseServer:
 								'type': 'integer',
 								'description': 'The index number of the input element (obtained from browser_get_state)',
 							},
-							'text': {'type': 'string', 'description': 'The text to type. SEARCH TIP: For Google searches use descriptive keywords. Add "site:domain.com" to limit to specific sites.'},
+							'text': {'type': 'string', 'description': 'The text to type. SEARCH TIP: For Google searches use descriptive keywords. Add "site:domain.com" to limit to specific sites. ⚠️ AVOID typing URL query formats like "example.com?q=term" - use natural search terms instead.'},
 						},
 						'required': ['index', 'text'],
 					},
