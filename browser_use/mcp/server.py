@@ -202,32 +202,29 @@ class BrowserUseServer:
 		async def handle_list_tools() -> list[types.Tool]:
 			"""List all available browser-use tools.
 			
-			🚨 MANDATORY SEQUENCE - NO EXCEPTIONS ALLOWED:
-			1. browser_navigate → Navigate to URL 
-			2. browser_get_state → ❗ ABSOLUTELY REQUIRED NEXT - NO OTHER TOOLS ALLOWED UNTIL THIS IS CALLED
-			3. Only then: browser_click, browser_type, browser_scroll, browser_extract_content
+			⚠️⚠️⚠️ READ THIS FIRST - CRITICAL WORKFLOW RULES ⚠️⚠️⚠️
 			
-			🚨 CRITICAL RULES:
-			- After browser_navigate: browser_get_state is THE ONLY valid next tool
-			- browser_click WILL FAIL without browser_get_state (no element indices available)
-			- browser_type WILL FAIL without browser_get_state (no element indices available) 
-			- browser_extract_content works better after browser_get_state (page fully loaded)
+			RULE #1: After using browser_navigate, you MUST use browser_get_state next.
+			RULE #2: You CANNOT use browser_click or browser_type without browser_get_state first.
+			RULE #3: browser_extract_content should also be used after browser_get_state for better results.
 			
-			🚨 FORBIDDEN SEQUENCES (THESE WILL CAUSE ERRORS):
-			- browser_navigate → browser_click ❌ 
-			- browser_navigate → browser_type ❌
-			- browser_navigate → browser_extract_content ❌ (should call browser_get_state first)
+			❌ THESE WILL CAUSE ERRORS AND FAILURE:
+			• browser_navigate → browser_click (NO ELEMENT INDICES!)
+			• browser_navigate → browser_type (NO ELEMENT INDICES!)  
+			• browser_navigate → browser_extract_content (PAGE NOT FULLY ANALYZED!)
 			
-			✅ CORRECT SEQUENCE:
-			browser_navigate → browser_get_state → [other tools]
+			✅ CORRECT WORKFLOW:
+			1. browser_navigate (go to page)
+			2. browser_get_state (get element indices - MANDATORY!)
+			3. browser_click/browser_type/browser_extract_content (now you can interact)
 			
-			SEARCH STRATEGY: Start with https://www.google.com for information gathering
+			IF YOU SKIP browser_get_state AFTER browser_navigate, THE NEXT TOOLS WILL FAIL!
 			"""
 			return [
 				# Navigation and Core Control
 				types.Tool(
 					name='browser_navigate',
-					description='[STEP 1] 🚨 Navigate to URL. ❗ CRITICAL: The ONLY valid next tool is browser_get_state. DO NOT call browser_click, browser_type, or browser_extract_content until browser_get_state is called first!',
+					description='Step 1: Navigate to URL. ⚠️ NEXT TOOL MUST BE browser_get_state - NO EXCEPTIONS!',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -239,7 +236,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_get_state',
-					description='[STEP 2] 🚨 MANDATORY AFTER browser_navigate. This is THE ONLY tool allowed after navigation! Gets page structure and element indices required for ALL other interactions.',
+					description='Step 2: Get page elements. REQUIRED after browser_navigate! Must be called before browser_click, browser_type, or browser_extract_content.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -255,7 +252,7 @@ class BrowserUseServer:
 				# Element Interaction
 				types.Tool(
 					name='browser_click',
-					description='[STEP 3A] ❌ WILL FAIL if browser_get_state not called first! Click element by index. PREREQUISITE: browser_navigate → browser_get_state → browser_click.',
+					description='Step 3a: Click element. REQUIRES browser_get_state first! Will fail without element indices.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -274,7 +271,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_type',
-					description='[STEP 3B] ❌ WILL FAIL if browser_get_state not called first! Type text into input fields. PREREQUISITE: browser_navigate → browser_get_state → browser_type.',
+					description='Step 3b: Type text. REQUIRES browser_get_state first! Will fail without element indices.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -289,7 +286,7 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_scroll',
-					description='[STEP 3C - OPTIONAL] Scroll the page to reveal more content. Use when elements are not visible or you need to see more content. Can be used without browser_get_state.',
+					description='Step 3c: Scroll page. Can be used anytime after browser_navigate.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -306,7 +303,7 @@ class BrowserUseServer:
 				# Content Extraction
 				types.Tool(
 					name='browser_extract_content',
-					description='[STEP 4] Extract content from page. 🔥 BEST PRACTICE: Call browser_get_state first to ensure page is fully loaded! Recommended sequence: browser_navigate → browser_get_state → browser_extract_content.',
+					description='Step 4: Extract content. BEST PRACTICE: Use browser_get_state first for better results.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
@@ -575,11 +572,11 @@ class BrowserUseServer:
 		if new_tab:
 			event = self.browser_session.event_bus.dispatch(NavigateToUrlEvent(url=url, new_tab=True))
 			await event
-			return f'Opened new tab with URL: {url}'
+			return f'Opened new tab with URL: {url}\n\n⚠️ CRITICAL NEXT STEP: You MUST call browser_get_state now to get page elements before any other browser actions!'
 		else:
 			event = self.browser_session.event_bus.dispatch(NavigateToUrlEvent(url=url))
 			await event
-			return f'Navigated to: {url}'
+			return f'Navigated to: {url}\n\n⚠️ CRITICAL NEXT STEP: You MUST call browser_get_state now to get page elements before any other browser actions!'
 
 	async def _click(self, index: int, new_tab: bool = False) -> str:
 		"""Click an element by index."""
