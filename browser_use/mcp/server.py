@@ -700,7 +700,8 @@ class BrowserUseServer:
 			extract_structured_data=(dict[str, Any], {'query': query, 'extract_links': extract_links}),
 		)
 
-		action = ExtractAction()
+		# Create action instance with explicit parameters to ensure they are set
+		action = ExtractAction(extract_structured_data={'query': query, 'extract_links': extract_links})
 		action_result = await self.controller.act(
 			action=action,
 			browser_session=self.browser_session,
