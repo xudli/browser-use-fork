@@ -239,13 +239,7 @@ class BrowserUseServer:
 					description='Step 2: Get page elements. REQUIRED after browser_navigate! Must be called before browser_click, browser_type, or browser_extract_content.',
 					inputSchema={
 						'type': 'object',
-						'properties': {
-							'include_screenshot': {
-								'type': 'boolean',
-								'description': 'Include a base64 screenshot for visual debugging (default: false)',
-								'default': False,
-							}
-						},
+						'properties': {},
 					},
 				),
 				
@@ -668,8 +662,9 @@ class BrowserUseServer:
 				elem_info['href'] = element.attributes['href']
 			result['interactive_elements'].append(elem_info)
 
-		if include_screenshot and state.screenshot:
-			result['screenshot'] = state.screenshot
+		# Note: Screenshot field is filtered out to reduce response size
+		# if include_screenshot and state.screenshot:
+		#     result['screenshot'] = state.screenshot
 
 		return json.dumps(result, indent=2)
 
