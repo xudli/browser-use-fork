@@ -38,11 +38,11 @@ from browser_use.controller.views import (
 	InputTextAction,
 	NoParamsAction,
 	ScrollAction,
+	SearchAction,
 	SearchDuckDuckGoAction,
 	SearchGoogleAction,
 	SelectDropdownOptionAction,
 	SendKeysAction,
-	SmartSearchAction,
 	StructuredOutputAction,
 	SwitchTabAction,
 	UploadFileAction,
@@ -212,81 +212,41 @@ class Controller(Generic[Context]):
 				return ActionResult(error=f'Failed to search DuckDuckGo for "{params.query}": {clean_msg}')
 
 		@self.registry.action(
-			'Smart search that automatically tries Google first and falls back to DuckDuckGo if reCAPTCHA is detected. Recommended for most searches.',
-			param_model=SmartSearchAction,
+			'Search using the configured default search engine (Google or DuckDuckGo based on BROWSER_USE_DEFAULT_SEARCH_ENGINE env var)',
+			param_model=SearchAction,
 		)
-		async def smart_search(params: SmartSearchAction, browser_session: BrowserSession):
-			logger.info(f"🧠 Smart search START: '{params.query}'")
+		async def search(params: SearchAction, browser_session: BrowserSession):
+			# Get default search engine from environment variable
+			default_search_engine = os.getenv('BROWSER_USE_DEFAULT_SEARCH_ENGINE', 'google').lower()
 			
-			try:
-				# First attempt: Google search
+			if default_search_engine == 'duckduckgo':
+				# Use DuckDuckGo
+				search_url = f'https://duckduckgo.com/?q={params.query}'
+				logo = '🦆'
+				engine_name = 'DuckDuckGo'
+			else:
+				# Default to Google
 				search_url = f'https://www.google.com/search?q={params.query}&udm=14'
+				logo = '🔍'
+				engine_name = 'Google'
 				
-				logger.info(f"🔍 Attempting Google search: {search_url}")
+			try:
+				# Navigate to search URL
 				event = browser_session.event_bus.dispatch(
 					NavigateToUrlEvent(url=search_url, new_tab=True)
 				)
 				await event
 				await event.event_result(raise_if_any=True, raise_if_none=False)
 				
-				# Short wait to check current URL
-				await asyncio.sleep(1)
-				current_url = browser_session.agent_focus.url if browser_session.agent_focus else ""
-				logger.info(f"🌐 Current URL after Google: {current_url}")
+				memory = f"Searched {engine_name} for '{params.query}'"
+				msg = f'{logo}  {memory}'
+				logger.info(msg)
+				return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
 				
-				# Quick reCAPTCHA check
-				if "google.com/sorry" in current_url.lower() or "recaptcha" in current_url.lower():
-					logger.warning(f"🤖 reCAPTCHA detected, switching to DuckDuckGo immediately")
-					
-					# Immediate switch to DuckDuckGo
-					duckduckgo_url = f'https://duckduckgo.com/?q={params.query}'
-					logger.info(f"🦆 Switching to DuckDuckGo: {duckduckgo_url}")
-					
-					event = browser_session.event_bus.dispatch(
-						NavigateToUrlEvent(url=duckduckgo_url, new_tab=False)
-					)
-					await event
-					await event.event_result(raise_if_any=True, raise_if_none=False)
-					
-					await asyncio.sleep(1)  # Brief wait for DuckDuckGo to load
-					
-					memory = f"🔄 Switched to DuckDuckGo due to Google reCAPTCHA for '{params.query}'"
-					logger.info(f"✅ Smart search completed with DuckDuckGo")
-					return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
-				
-				else:
-					# Google worked fine
-					memory = f"🔍 Searched Google for '{params.query}'"
-					logger.info(f"✅ Smart search completed with Google")
-					return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
-					
 			except Exception as e:
-				logger.error(f"❌ Smart search error: {e}")
-				
-				# Fallback to DuckDuckGo on any error
-				if params.fallback_to_duckduckgo:
-					try:
-						duckduckgo_url = f'https://duckduckgo.com/?q={params.query}'
-						logger.info(f"🦆 Error fallback to DuckDuckGo: {duckduckgo_url}")
-						
-						event = browser_session.event_bus.dispatch(
-							NavigateToUrlEvent(url=duckduckgo_url, new_tab=False)
-						)
-						await event
-						await event.event_result(raise_if_any=True, raise_if_none=False)
-						
-						memory = f"🦆 Searched DuckDuckGo for '{params.query}' (Google failed)"
-						logger.info(f"✅ Smart search completed with DuckDuckGo fallback")
-						return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
-						
-					except Exception as e2:
-						logger.error(f"❌ Both Google and DuckDuckGo failed: {e2}")
-						return ActionResult(error=f"Search failed: {str(e2)}")
-				else:
-					return ActionResult(error=f"Google search failed: {str(e)}")
-			
-			finally:
-				logger.info(f"🧠 Smart search END: '{params.query}'")
+				logger.error(f'Failed to search {engine_name}: {e}')
+				clean_msg = extract_llm_error_message(e)
+				return ActionResult(error=f'Failed to search {engine_name} for "{params.query}": {clean_msg}')
 
 		@self.registry.action(
 			'Navigate to URL, set new_tab=True to open in new tab, False to navigate in current tab', param_model=GoToUrlAction
@@ -1088,49 +1048,6 @@ Provide the extracted information in a clear, structured format."""
 	# 		include_in_memory=False,
 	# 		long_term_memory=f"Inputted text '{text}' into cell",
 	# 	)
-
-	def _detect_recaptcha(self, browser_session: BrowserSession) -> bool:
-		"""Detect if current page contains reCAPTCHA or Google sorry page"""
-		try:
-			# Get current page content
-			current_url = browser_session.agent_focus.url if browser_session.agent_focus else ""
-			page_title = browser_session.agent_focus.title if browser_session.agent_focus else ""
-			
-			logger.info(f"🔍 reCAPTCHA Detection - URL: {current_url}")
-			logger.info(f"🔍 reCAPTCHA Detection - Title: {page_title}")
-			
-			# Check URL patterns for reCAPTCHA/sorry pages
-			recaptcha_url_patterns = [
-				"google.com/sorry",
-				"google.com/recaptcha",
-				"www.google.com/sorry",
-				"www.google.com/recaptcha",
-				"accounts.google.com/signin/challenge"
-			]
-			
-			if any(pattern in current_url.lower() for pattern in recaptcha_url_patterns):
-				logger.warning(f"🤖 reCAPTCHA detected in URL: {current_url}")
-				return True
-			
-			# Check page title and content for reCAPTCHA indicators
-			recaptcha_title_patterns = [
-				"sorry",
-				"unusual traffic",
-				"verify you're not a robot",
-				"recaptcha",
-				"security check"
-			]
-			
-			if any(pattern in page_title.lower() for pattern in recaptcha_title_patterns):
-				logger.warning(f"🤖 reCAPTCHA detected in title: {page_title}")
-				return True
-			
-			logger.info(f"✅ No reCAPTCHA detected")
-			return False
-			
-		except Exception as e:
-			logger.error(f"❌ Error detecting reCAPTCHA: {e}")
-			return False
 
 	# Custom done action for structured output
 	def _register_done_action(self, output_model: type[T] | None, display_files_in_done_text: bool = True):

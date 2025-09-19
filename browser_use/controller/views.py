@@ -12,9 +12,8 @@ class SearchDuckDuckGoAction(BaseModel):
 	query: str
 
 
-class SmartSearchAction(BaseModel):
+class SearchAction(BaseModel):
 	query: str
-	fallback_to_duckduckgo: bool = True
 
 
 class GoToUrlAction(BaseModel):
