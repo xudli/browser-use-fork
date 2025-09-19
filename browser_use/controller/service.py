@@ -32,14 +32,17 @@ from browser_use.controller.views import (
 	ClickElementAction,
 	CloseTabAction,
 	DoneAction,
+	ExtractPageContentAction,
 	GetDropdownOptionsAction,
 	GoToUrlAction,
 	InputTextAction,
 	NoParamsAction,
 	ScrollAction,
+	SearchDuckDuckGoAction,
 	SearchGoogleAction,
 	SelectDropdownOptionAction,
 	SendKeysAction,
+	SmartSearchAction,
 	StructuredOutputAction,
 	SwitchTabAction,
 	UploadFileAction,
@@ -182,6 +185,80 @@ class Controller(Generic[Context]):
 				logger.error(f'Failed to search Google: {e}')
 				clean_msg = extract_llm_error_message(e)
 				return ActionResult(error=f'Failed to search Google for "{params.query}": {clean_msg}')
+
+		@self.registry.action(
+			'Search using DuckDuckGo, which often has fewer restrictions than Google',
+			param_model=SearchDuckDuckGoAction,
+		)
+		async def search_duckduckgo(params: SearchDuckDuckGoAction, browser_session: BrowserSession):
+			search_url = f'https://duckduckgo.com/?q={params.query}'
+			
+			try:
+				# Navigate to DuckDuckGo search
+				event = browser_session.event_bus.dispatch(
+					NavigateToUrlEvent(url=search_url, new_tab=True)
+				)
+				await event
+				await event.event_result(raise_if_any=True, raise_if_none=False)
+				
+				memory = f"Searched DuckDuckGo for '{params.query}'"
+				msg = f'🦆  {memory}'
+				logger.info(msg)
+				return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
+				
+			except Exception as e:
+				logger.error(f'Failed to search DuckDuckGo: {e}')
+				clean_msg = extract_llm_error_message(e)
+				return ActionResult(error=f'Failed to search DuckDuckGo for "{params.query}": {clean_msg}')
+
+		@self.registry.action(
+			'Smart search that tries Google first, then automatically falls back to DuckDuckGo if reCAPTCHA is detected',
+			param_model=SmartSearchAction,
+		)
+		async def smart_search(params: SmartSearchAction, browser_session: BrowserSession):
+			# First try Google search
+			logger.info(f"🧠 Smart search: Trying Google first for '{params.query}'")
+			
+			google_params = SearchGoogleAction(query=params.query)
+			google_result = await search_google(google_params, browser_session)
+			
+			# If Google search was successful, check for reCAPTCHA
+			if not google_result.error:
+				# Wait a moment for page to load
+				await asyncio.sleep(1)
+				
+				# Check if we hit reCAPTCHA
+				is_recaptcha = self._detect_recaptcha(browser_session)
+				
+				if not is_recaptcha:
+					# Google search successful, no reCAPTCHA detected
+					logger.info(f"✅ Smart search: Google search successful for '{params.query}'")
+					return google_result
+				else:
+					# reCAPTCHA detected, fall back to DuckDuckGo
+					logger.warning(f"🤖 Smart search: reCAPTCHA detected, switching to DuckDuckGo for '{params.query}'")
+					
+					if params.fallback_to_duckduckgo:
+						duckduckgo_params = SearchDuckDuckGoAction(query=params.query)
+						fallback_result = await search_duckduckgo(duckduckgo_params, browser_session)
+						
+						if not fallback_result.error:
+							fallback_memory = f"Switched to DuckDuckGo due to Google reCAPTCHA for '{params.query}'"
+							fallback_result.long_term_memory = fallback_memory
+							fallback_result.extracted_content = f"🔄 {fallback_memory}"
+							return fallback_result
+						else:
+							return ActionResult(error=f"Both Google (reCAPTCHA) and DuckDuckGo failed for '{params.query}': {fallback_result.error}")
+					else:
+						return ActionResult(error=f"Google search blocked by reCAPTCHA for '{params.query}' and fallback disabled")
+			else:
+				# Google search failed for other reasons
+				if params.fallback_to_duckduckgo:
+					logger.warning(f"⚠️ Smart search: Google failed, trying DuckDuckGo for '{params.query}'")
+					duckduckgo_params = SearchDuckDuckGoAction(query=params.query)
+					return await search_duckduckgo(duckduckgo_params, browser_session)
+				else:
+					return google_result
 
 		@self.registry.action(
 			'Navigate to URL, set new_tab=True to open in new tab, False to navigate in current tab', param_model=GoToUrlAction
@@ -983,6 +1060,45 @@ Provide the extracted information in a clear, structured format."""
 	# 		include_in_memory=False,
 	# 		long_term_memory=f"Inputted text '{text}' into cell",
 	# 	)
+
+	def _detect_recaptcha(self, browser_session: BrowserSession) -> bool:
+		"""Detect if current page contains reCAPTCHA or Google sorry page"""
+		try:
+			# Get current page content
+			current_url = browser_session.agent_focus.url if browser_session.agent_focus else ""
+			
+			# Check URL patterns for reCAPTCHA/sorry pages
+			recaptcha_url_patterns = [
+				"google.com/sorry",
+				"google.com/recaptcha",
+				"www.google.com/sorry",
+				"www.google.com/recaptcha",
+				"accounts.google.com/signin/challenge"
+			]
+			
+			if any(pattern in current_url.lower() for pattern in recaptcha_url_patterns):
+				logger.warning(f"🤖 reCAPTCHA detected in URL: {current_url}")
+				return True
+			
+			# Check page title and content for reCAPTCHA indicators
+			page_title = browser_session.agent_focus.title if browser_session.agent_focus else ""
+			recaptcha_title_patterns = [
+				"sorry",
+				"unusual traffic",
+				"verify you're not a robot",
+				"recaptcha",
+				"security check"
+			]
+			
+			if any(pattern in page_title.lower() for pattern in recaptcha_title_patterns):
+				logger.warning(f"🤖 reCAPTCHA detected in title: {page_title}")
+				return True
+			
+			return False
+			
+		except Exception as e:
+			logger.debug(f"Error detecting reCAPTCHA: {e}")
+			return False
 
 	# Custom done action for structured output
 	def _register_done_action(self, output_model: type[T] | None, display_files_in_done_text: bool = True):
