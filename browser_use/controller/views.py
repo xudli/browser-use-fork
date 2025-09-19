@@ -8,6 +8,15 @@ class SearchGoogleAction(BaseModel):
 	query: str
 
 
+class SearchDuckDuckGoAction(BaseModel):
+	query: str
+
+
+class SmartSearchAction(BaseModel):
+	query: str
+	fallback_to_duckduckgo: bool = True
+
+
 class GoToUrlAction(BaseModel):
 	url: str
 	new_tab: bool = False  # True to open in new tab, False to navigate in current tab
