@@ -385,11 +385,14 @@ class BrowserUseServer:
 				),
 				types.Tool(
 					name='browser_agent_stop',
-					description='Stop the currently running autonomous agent task.',
+					description='Stop a running browser automation task immediately. Use this to cancel a task that is taking too long, has encountered issues, or is no longer needed. The task will be marked as stopped and can no longer be resumed.',
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'task_id': {'type': 'string', 'description': 'Task ID to stop (optional if only one task)'},
+							'task_id': {
+								'type': 'string', 
+								'description': 'The task ID to stop. If omitted, stops the most recently started task.'
+							},
 						},
 					},
 				),
@@ -488,17 +491,26 @@ class BrowserUseServer:
 
 		# Get profile config
 		profile_config = get_default_profile(self.config)
+		
+		# Read stealth settings from environment variables
+		env_config = os.environ
+		stealth_enabled = env_config.get('BROWSER_USE_STEALTH', 'true').lower() in ('true', '1', 'yes')
+		extensions_enabled = env_config.get('BROWSER_USE_ENABLE_DEFAULT_EXTENSIONS', 'true').lower() in ('true', '1', 'yes')
+		wait_time = float(env_config.get('BROWSER_USE_WAIT_BETWEEN_ACTIONS', '2.0'))
 
 		# Merge profile config with defaults and overrides
 		profile_data = {
 			'downloads_path': str(Path.home() / 'Downloads' / 'browser-use-mcp'),
-			'wait_between_actions': 0.5,
+			'wait_between_actions': wait_time,  # Use environment variable
 			'keep_alive': True,
 			'user_data_dir': '~/.config/browseruse/profiles/default',
 			'is_mobile': False,
 			'device_scale_factor': 1.0,
 			'disable_security': False,
 			'headless': False,
+			'stealth': stealth_enabled,  # Use environment variable
+			'enable_default_extensions': extensions_enabled,  # Use environment variable
+			'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',  # More realistic user agent
 			**profile_config,  # Config values override defaults
 		}
 

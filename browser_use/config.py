@@ -214,6 +214,11 @@ class FlatEnvConfig(BaseSettings):
 	BROWSER_USE_HEADLESS: bool | None = Field(default=None)
 	BROWSER_USE_ALLOWED_DOMAINS: str | None = Field(default=None)
 	BROWSER_USE_LLM_MODEL: str | None = Field(default=None)
+	
+	# Stealth and anti-detection settings
+	BROWSER_USE_STEALTH: bool = Field(default=True)
+	BROWSER_USE_ENABLE_DEFAULT_EXTENSIONS: bool = Field(default=True)
+	BROWSER_USE_WAIT_BETWEEN_ACTIONS: float = Field(default=2.0)
 
 	# Proxy env vars
 	BROWSER_USE_PROXY_URL: str | None = Field(default=None)
