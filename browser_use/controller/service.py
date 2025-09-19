@@ -106,7 +106,7 @@ class Controller(Generic[Context]):
 
 		# Basic Navigation Actions
 		@self.registry.action(
-			'Search the query in Google, the query should be a search query like humans search in Google, concrete and not vague or super long.',
+			'Search using Google directly (may trigger reCAPTCHA). Consider using smart_search instead.',
 			param_model=SearchGoogleAction,
 		)
 		async def search_google(params: SearchGoogleAction, browser_session: BrowserSession):
@@ -187,16 +187,16 @@ class Controller(Generic[Context]):
 				return ActionResult(error=f'Failed to search Google for "{params.query}": {clean_msg}')
 
 		@self.registry.action(
-			'Search using DuckDuckGo, which often has fewer restrictions than Google',
+			'Search using DuckDuckGo directly (alternative search engine with fewer restrictions)',
 			param_model=SearchDuckDuckGoAction,
 		)
 		async def search_duckduckgo(params: SearchDuckDuckGoAction, browser_session: BrowserSession):
 			search_url = f'https://duckduckgo.com/?q={params.query}'
 			
 			try:
-				# Navigate to DuckDuckGo search
+				# Navigate to DuckDuckGo search - use current tab instead of new tab to avoid confusion
 				event = browser_session.event_bus.dispatch(
-					NavigateToUrlEvent(url=search_url, new_tab=True)
+					NavigateToUrlEvent(url=search_url, new_tab=False)
 				)
 				await event
 				await event.event_result(raise_if_any=True, raise_if_none=False)
@@ -212,53 +212,81 @@ class Controller(Generic[Context]):
 				return ActionResult(error=f'Failed to search DuckDuckGo for "{params.query}": {clean_msg}')
 
 		@self.registry.action(
-			'Smart search that tries Google first, then automatically falls back to DuckDuckGo if reCAPTCHA is detected',
+			'Smart search that automatically tries Google first and falls back to DuckDuckGo if reCAPTCHA is detected. Recommended for most searches.',
 			param_model=SmartSearchAction,
 		)
 		async def smart_search(params: SmartSearchAction, browser_session: BrowserSession):
-			# First try Google search
-			logger.info(f"🧠 Smart search: Trying Google first for '{params.query}'")
+			logger.info(f"🧠 Smart search START: '{params.query}'")
 			
-			google_params = SearchGoogleAction(query=params.query)
-			google_result = await search_google(google_params, browser_session)
-			
-			# If Google search was successful, check for reCAPTCHA
-			if not google_result.error:
-				# Wait a moment for page to load
+			try:
+				# First attempt: Google search
+				search_url = f'https://www.google.com/search?q={params.query}&udm=14'
+				
+				logger.info(f"🔍 Attempting Google search: {search_url}")
+				event = browser_session.event_bus.dispatch(
+					NavigateToUrlEvent(url=search_url, new_tab=True)
+				)
+				await event
+				await event.event_result(raise_if_any=True, raise_if_none=False)
+				
+				# Short wait to check current URL
 				await asyncio.sleep(1)
+				current_url = browser_session.agent_focus.url if browser_session.agent_focus else ""
+				logger.info(f"🌐 Current URL after Google: {current_url}")
 				
-				# Check if we hit reCAPTCHA
-				is_recaptcha = self._detect_recaptcha(browser_session)
-				
-				if not is_recaptcha:
-					# Google search successful, no reCAPTCHA detected
-					logger.info(f"✅ Smart search: Google search successful for '{params.query}'")
-					return google_result
-				else:
-					# reCAPTCHA detected, fall back to DuckDuckGo
-					logger.warning(f"🤖 Smart search: reCAPTCHA detected, switching to DuckDuckGo for '{params.query}'")
+				# Quick reCAPTCHA check
+				if "google.com/sorry" in current_url.lower() or "recaptcha" in current_url.lower():
+					logger.warning(f"🤖 reCAPTCHA detected, switching to DuckDuckGo immediately")
 					
-					if params.fallback_to_duckduckgo:
-						duckduckgo_params = SearchDuckDuckGoAction(query=params.query)
-						fallback_result = await search_duckduckgo(duckduckgo_params, browser_session)
-						
-						if not fallback_result.error:
-							fallback_memory = f"Switched to DuckDuckGo due to Google reCAPTCHA for '{params.query}'"
-							fallback_result.long_term_memory = fallback_memory
-							fallback_result.extracted_content = f"🔄 {fallback_memory}"
-							return fallback_result
-						else:
-							return ActionResult(error=f"Both Google (reCAPTCHA) and DuckDuckGo failed for '{params.query}': {fallback_result.error}")
-					else:
-						return ActionResult(error=f"Google search blocked by reCAPTCHA for '{params.query}' and fallback disabled")
-			else:
-				# Google search failed for other reasons
-				if params.fallback_to_duckduckgo:
-					logger.warning(f"⚠️ Smart search: Google failed, trying DuckDuckGo for '{params.query}'")
-					duckduckgo_params = SearchDuckDuckGoAction(query=params.query)
-					return await search_duckduckgo(duckduckgo_params, browser_session)
+					# Immediate switch to DuckDuckGo
+					duckduckgo_url = f'https://duckduckgo.com/?q={params.query}'
+					logger.info(f"🦆 Switching to DuckDuckGo: {duckduckgo_url}")
+					
+					event = browser_session.event_bus.dispatch(
+						NavigateToUrlEvent(url=duckduckgo_url, new_tab=False)
+					)
+					await event
+					await event.event_result(raise_if_any=True, raise_if_none=False)
+					
+					await asyncio.sleep(1)  # Brief wait for DuckDuckGo to load
+					
+					memory = f"🔄 Switched to DuckDuckGo due to Google reCAPTCHA for '{params.query}'"
+					logger.info(f"✅ Smart search completed with DuckDuckGo")
+					return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
+				
 				else:
-					return google_result
+					# Google worked fine
+					memory = f"🔍 Searched Google for '{params.query}'"
+					logger.info(f"✅ Smart search completed with Google")
+					return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
+					
+			except Exception as e:
+				logger.error(f"❌ Smart search error: {e}")
+				
+				# Fallback to DuckDuckGo on any error
+				if params.fallback_to_duckduckgo:
+					try:
+						duckduckgo_url = f'https://duckduckgo.com/?q={params.query}'
+						logger.info(f"🦆 Error fallback to DuckDuckGo: {duckduckgo_url}")
+						
+						event = browser_session.event_bus.dispatch(
+							NavigateToUrlEvent(url=duckduckgo_url, new_tab=False)
+						)
+						await event
+						await event.event_result(raise_if_any=True, raise_if_none=False)
+						
+						memory = f"🦆 Searched DuckDuckGo for '{params.query}' (Google failed)"
+						logger.info(f"✅ Smart search completed with DuckDuckGo fallback")
+						return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
+						
+					except Exception as e2:
+						logger.error(f"❌ Both Google and DuckDuckGo failed: {e2}")
+						return ActionResult(error=f"Search failed: {str(e2)}")
+				else:
+					return ActionResult(error=f"Google search failed: {str(e)}")
+			
+			finally:
+				logger.info(f"🧠 Smart search END: '{params.query}'")
 
 		@self.registry.action(
 			'Navigate to URL, set new_tab=True to open in new tab, False to navigate in current tab', param_model=GoToUrlAction
@@ -1066,6 +1094,10 @@ Provide the extracted information in a clear, structured format."""
 		try:
 			# Get current page content
 			current_url = browser_session.agent_focus.url if browser_session.agent_focus else ""
+			page_title = browser_session.agent_focus.title if browser_session.agent_focus else ""
+			
+			logger.info(f"🔍 reCAPTCHA Detection - URL: {current_url}")
+			logger.info(f"🔍 reCAPTCHA Detection - Title: {page_title}")
 			
 			# Check URL patterns for reCAPTCHA/sorry pages
 			recaptcha_url_patterns = [
@@ -1081,7 +1113,6 @@ Provide the extracted information in a clear, structured format."""
 				return True
 			
 			# Check page title and content for reCAPTCHA indicators
-			page_title = browser_session.agent_focus.title if browser_session.agent_focus else ""
 			recaptcha_title_patterns = [
 				"sorry",
 				"unusual traffic",
@@ -1094,10 +1125,11 @@ Provide the extracted information in a clear, structured format."""
 				logger.warning(f"🤖 reCAPTCHA detected in title: {page_title}")
 				return True
 			
+			logger.info(f"✅ No reCAPTCHA detected")
 			return False
 			
 		except Exception as e:
-			logger.debug(f"Error detecting reCAPTCHA: {e}")
+			logger.error(f"❌ Error detecting reCAPTCHA: {e}")
 			return False
 
 	# Custom done action for structured output
