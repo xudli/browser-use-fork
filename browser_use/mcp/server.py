@@ -554,7 +554,7 @@ class BrowserUseServer:
 		llm_config = get_default_llm(self.config)
 		if api_key := llm_config.get('api_key'):
 			self.llm = ChatOpenAI(
-				model=llm_config.get('model', 'gpt-4.1'),
+				model=llm_config.get('model', 'gpt-5'),
 				api_key=api_key,
 				temperature=llm_config.get('temperature', 0.7),
 				# max_tokens=llm_config.get('max_tokens'),
@@ -570,7 +570,7 @@ class BrowserUseServer:
 		self,
 		task: str,
 		max_steps: int = 100,
-		model: str = 'gpt-4.1',
+		model: str = 'gpt-5',
 		allowed_domains: list[str] | None = None,
 		use_vision: bool = True,
 	) -> str:
@@ -584,10 +584,10 @@ class BrowserUseServer:
 			return 'Error: OPENAI_API_KEY not set in config or environment'
 
 		# Override model if provided in tool call
-		if model != llm_config.get('model', 'gpt-4.1'):
+		if model != llm_config.get('model', 'gpt-5'):
 			llm_model = model
 		else:
-			llm_model = llm_config.get('model', 'gpt-4.1')
+			llm_model = llm_config.get('model', 'gpt-5')
 
 		llm = ChatOpenAI(
 			model=llm_model,
@@ -859,7 +859,7 @@ class BrowserUseServer:
 
 		# Get configuration from environment variables
 		max_steps = int(os.getenv('BROWSER_AGENT_MAX_STEPS', '100'))
-		model = os.getenv('BROWSER_AGENT_MODEL', 'gpt-4.1')
+		model = os.getenv('BROWSER_AGENT_MODEL', 'gpt-5')
 		use_vision = os.getenv('BROWSER_AGENT_USE_VISION', 'true').lower() == 'true'
 
 		# Generate task ID
@@ -1092,7 +1092,7 @@ class BrowserUseServer:
 				llm_config = get_default_llm(self.config)
 				if api_key := llm_config.get('api_key'):
 					self.llm = ChatOpenAI(
-						model=llm_config.get('model', 'gpt-4.1'),
+						model=llm_config.get('model', 'gpt-5'),
 						api_key=api_key,
 						temperature=llm_config.get('temperature', 0.7),
 					)
