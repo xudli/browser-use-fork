@@ -27,7 +27,7 @@ from browser_use.controller.views import (
 	ClickElementAction,
 	InputTextAction,
 	NoParamsAction,
-	SearchGoogleAction,
+	SearchDuckDuckGoAction,
 )
 from browser_use.llm.messages import UserMessage
 from tests.ci.conftest import create_mock_llm
@@ -510,8 +510,8 @@ class TestExistingControllerActions:
 	async def test_existing_action_models(self, registry, browser_session):
 		"""Test that existing action parameter models work correctly"""
 
-		@registry.action('Test search', param_model=SearchGoogleAction)
-		async def test_search(params: SearchGoogleAction, browser_session: BrowserSession):
+		@registry.action('Test search', param_model=SearchDuckDuckGoAction)
+		async def test_search(params: SearchDuckDuckGoAction, browser_session: BrowserSession):
 			return ActionResult(extracted_content=f'Searched for: {params.query}')
 
 		@registry.action('Test click', param_model=ClickElementAction)
@@ -522,7 +522,7 @@ class TestExistingControllerActions:
 		async def test_input(params: InputTextAction, browser_session: BrowserSession):
 			return ActionResult(extracted_content=f'Input text: {params.text} at index: {params.index}')
 
-		# Test SearchGoogleAction
+		# Test SearchDuckDuckGoAction
 		result1 = await registry.execute_action('test_search', {'query': 'python testing'}, browser_session=browser_session)
 		assert result1.extracted_content is not None
 		assert 'Searched for: python testing' in result1.extracted_content

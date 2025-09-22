@@ -239,7 +239,7 @@ class BrowserUseServer:
 					inputSchema={
 						'type': 'object',
 						'properties': {
-							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). STRONGLY RECOMMENDED: Start with https://www.google.com for searches and information gathering. ⚠️ AVOID URL query parameters like "site.com?q=search" - use proper search interfaces instead.'},
+							'url': {'type': 'string', 'description': 'The URL to navigate to (must include http:// or https://). STRONGLY RECOMMENDED: Start with https://duckduckgo.com for searches and information gathering. ⚠️ AVOID URL query parameters like "site.com?q=search" - use proper search interfaces instead.'},
 							'new_tab': {'type': 'boolean', 'description': 'Whether to open in a new tab (default: false)', 'default': False},
 						},
 						'required': ['url'],
@@ -284,7 +284,7 @@ class BrowserUseServer:
 								'type': 'integer',
 								'description': 'The index number of the input element (obtained from browser_get_state)',
 							},
-							'text': {'type': 'string', 'description': 'The text to type. SEARCH TIP: For Google searches use descriptive keywords. Add "site:domain.com" to limit to specific sites. ⚠️ AVOID typing URL query formats like "example.com?q=term" - use natural search terms instead.'},
+							'text': {'type': 'string', 'description': 'The text to type. SEARCH TIP: For DuckDuckGo searches use descriptive keywords. Add "site:domain.com" to limit to specific sites. ⚠️ AVOID typing URL query formats like "example.com?q=term" - use natural search terms instead.'},
 						},
 						'required': ['index', 'text'],
 					},
@@ -326,7 +326,7 @@ class BrowserUseServer:
 				# Navigation History
 				types.Tool(
 					name='browser_go_back',
-					description='Go back to the previous page in browser history. USEFUL: Return to Google search results after visiting a specific site to continue searching.',
+					description='Go back to the previous page in browser history. USEFUL: Return to DuckDuckGo search results after visiting a specific site to continue searching.',
 					inputSchema={'type': 'object', 'properties': {}},
 				),
 				
@@ -364,7 +364,7 @@ class BrowserUseServer:
 						'properties': {
 							'task': {
 								'type': 'string', 
-								'description': 'Clear, specific description of what you want the browser agent to accomplish. Be detailed about the goal, target website if known, and what information to extract or actions to perform. Examples: "Search Google for current Bitcoin price and extract the value", "Go to Wikipedia and find the population of Tokyo", "Navigate to GitHub and search for Python web scraping repositories"'
+								'description': 'Clear, specific description of what you want the browser agent to accomplish. Be detailed about the goal, target website if known, and what information to extract or actions to perform. Examples: "Search DuckDuckGo for current Bitcoin price and extract the value", "Go to Wikipedia and find the population of Tokyo", "Navigate to GitHub and search for Python web scraping repositories"'
 							},
 						},
 						'required': ['task'],
@@ -1042,6 +1042,39 @@ class BrowserUseServer:
 		# Remove fields that agents don't need to see
 		filtered_progress.pop('model', None)
 		filtered_progress.pop('use_vision', None)
+
+		# Simplify steps information - only show step number and brief action summary
+		if 'steps' in filtered_progress and filtered_progress['steps']:
+			simplified_steps = []
+			for step_info in filtered_progress['steps']:
+				simplified_step = {
+					'step': step_info.get('step', 'unknown'),
+				}
+				
+				# Create brief action summary
+				action_str = step_info.get('action', '')
+				if action_str:
+					# Extract action type from the action string (e.g., "go_to_url" from full action)
+					try:
+						# Try to parse as JSON to extract action type
+						import re
+						# Look for action type patterns like "go_to_url", "click_element", etc.
+						action_match = re.search(r'"(\w+)":\s*{', action_str)
+						if action_match:
+							action_type = action_match.group(1)
+							simplified_step['action'] = action_type
+						else:
+							# Fallback: truncate long action strings
+							simplified_step['action'] = action_str[:50] + '...' if len(action_str) > 50 else action_str
+					except:
+						# If parsing fails, just truncate
+						simplified_step['action'] = action_str[:50] + '...' if len(action_str) > 50 else action_str
+				else:
+					simplified_step['action'] = 'unknown'
+					
+				simplified_steps.append(simplified_step)
+			
+			filtered_progress['steps'] = simplified_steps
 
 		# Add runtime info for active tasks
 		if filtered_progress.get('status') in ['starting', 'running'] and 'start_time' in filtered_progress:

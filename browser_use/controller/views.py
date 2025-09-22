@@ -4,8 +4,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 # Action Input Models
-class SearchGoogleAction(BaseModel):
-	query: str
+# Google search disabled - use DuckDuckGo or general search instead
+# class SearchGoogleAction(BaseModel):
+#	query: str
 
 
 class SearchDuckDuckGoAction(BaseModel):

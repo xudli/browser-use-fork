@@ -14,7 +14,7 @@ from browser_use.controller.views import (
 	DoneAction,
 	GoToUrlAction,
 	NoParamsAction,
-	SearchGoogleAction,
+	SearchDuckDuckGoAction,
 	SendKeysAction,
 )
 from browser_use.filesystem.file_system import FileSystem
@@ -369,12 +369,12 @@ class TestControllerIntegration:
 		await browser_session.get_current_page()
 
 		# Execute search_google action - it will actually navigate to our search results page
-		search_action = {'search_google': SearchGoogleAction(query='Python web automation')}
+		search_action = {'search_duckduckgo': SearchDuckDuckGoAction(query='Python web automation')}
 
-		class SearchGoogleActionModel(ActionModel):
-			search_google: SearchGoogleAction | None = None
+		class SearchDuckDuckGoActionModel(ActionModel):
+			search_duckduckgo: SearchDuckDuckGoAction | None = None
 
-		result = await controller.act(SearchGoogleActionModel(**search_action), browser_session)
+		result = await controller.act(SearchDuckDuckGoActionModel(**search_action), browser_session)
 
 		# Verify the result
 		assert isinstance(result, ActionResult)

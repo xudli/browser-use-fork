@@ -41,7 +41,6 @@ from browser_use.controller.views import (
 	ScrollAction,
 	SearchAction,
 	SearchDuckDuckGoAction,
-	SearchGoogleAction,
 	SelectDropdownOptionAction,
 	SendKeysAction,
 	StructuredOutputAction,
@@ -106,86 +105,13 @@ class Controller(Generic[Context]):
 		self._register_done_action(output_model)
 
 		# Basic Navigation Actions
-		@self.registry.action(
-			'Search using Google directly (may trigger reCAPTCHA). Consider using search instead for automatic engine selection.',
-			param_model=SearchGoogleAction,
-		)
-		async def search_google(params: SearchGoogleAction, browser_session: BrowserSession):
-			search_url = f'https://www.google.com/search?q={params.query}&udm=14'
-
-			# Check if there's already a tab open on Google or agent's about:blank
-			use_new_tab = True
-			try:
-				tabs = await browser_session.get_tabs()
-				# Get last 4 chars of browser session ID to identify agent's tabs
-				browser_session_label = str(browser_session.id)[-4:]
-				logger.debug(f'Checking {len(tabs)} tabs for reusable tab (browser_session_label: {browser_session_label})')
-
-				for i, tab in enumerate(tabs):
-					logger.debug(f'Tab {i}: url="{tab.url}", title="{tab.title}"')
-					# Check if tab is on Google domain
-					if tab.url and tab.url.strip('/').lower() in ('https://www.google.com', 'https://google.com'):
-						# Found existing Google tab, navigate in it
-						logger.debug(f'Found existing Google tab at index {i}: {tab.url}, reusing it')
-
-						# Switch to this tab first if it's not the current one
-						from browser_use.browser.events import SwitchTabEvent
-
-						if browser_session.agent_focus and tab.target_id != browser_session.agent_focus.target_id:
-							try:
-								switch_event = browser_session.event_bus.dispatch(SwitchTabEvent(target_id=tab.target_id))
-								await switch_event
-								await switch_event.event_result(raise_if_none=False)
-							except Exception as e:
-								logger.warning(f'Failed to switch to existing Google tab: {e}, will use new tab')
-								continue
-
-						use_new_tab = False
-						break
-					# Check if it's an agent-owned about:blank page (has "Starting agent XXXX..." title)
-					# IMPORTANT: about:blank is also used briefly for new tabs the agent is trying to open, dont take over those!
-					elif tab.url == 'about:blank' and tab.title:
-						# Check if this is our agent's about:blank page with DVD animation
-						# The title should be "Starting agent XXXX..." where XXXX is the browser_session_label
-						if browser_session_label in tab.title:
-							# This is our agent's about:blank page
-							logger.debug(f'Found agent-owned about:blank tab at index {i} with title: "{tab.title}", reusing it')
-
-							# Switch to this tab first
-							from browser_use.browser.events import SwitchTabEvent
-
-							if browser_session.agent_focus and tab.target_id != browser_session.agent_focus.target_id:
-								try:
-									switch_event = browser_session.event_bus.dispatch(SwitchTabEvent(target_id=tab.target_id))
-									await switch_event
-									await switch_event.event_result()
-								except Exception as e:
-									logger.warning(f'Failed to switch to agent-owned tab: {e}, will use new tab')
-									continue
-
-							use_new_tab = False
-							break
-			except Exception as e:
-				logger.debug(f'Could not check for existing tabs: {e}, using new tab')
-
-			# Dispatch navigation event
-			try:
-				event = browser_session.event_bus.dispatch(
-					NavigateToUrlEvent(
-						url=search_url,
-						new_tab=use_new_tab,
-					)
-				)
-				await event
-				await event.event_result(raise_if_any=True, raise_if_none=False)
-				memory = f"Searched Google for '{params.query}'"
-				msg = f'🔍  {memory}'
-				logger.info(msg)
-				return ActionResult(extracted_content=memory, include_in_memory=True, long_term_memory=memory)
-			except Exception as e:
-				logger.error(f'Failed to search Google: {e}')
-				clean_msg = extract_llm_error_message(e)
-				return ActionResult(error=f'Failed to search Google for "{params.query}": {clean_msg}')
+		# Google search disabled - use DuckDuckGo instead
+		# @self.registry.action(
+		#	'Search using Google directly (may trigger reCAPTCHA). Consider using search instead for automatic engine selection.',
+		#	param_model=SearchGoogleAction,
+		# )
+		# async def search_google(params: SearchGoogleAction, browser_session: BrowserSession):
+		#	return ActionResult(error="Google search is disabled. Please use 'search' or 'search_duckduckgo' actions instead.")
 
 		@self.registry.action(
 			'Search using DuckDuckGo directly (alternative search engine with fewer restrictions)',
@@ -213,23 +139,28 @@ class Controller(Generic[Context]):
 				return ActionResult(error=f'Failed to search DuckDuckGo for "{params.query}": {clean_msg}')
 
 		@self.registry.action(
-			'Search the web using the configured search engine (recommended - automatically uses Google or DuckDuckGo based on configuration)',
+			'Search the web using the configured search engine (recommended - automatically uses DuckDuckGo based on configuration)',
 			param_model=SearchAction,
 		)
 		async def search(params: SearchAction, browser_session: BrowserSession):
-			# Get default search engine from environment variable
-			default_search_engine = os.getenv('BROWSER_USE_DEFAULT_SEARCH_ENGINE', 'google').lower()
+			# Get default search engine from environment variable (default changed to duckduckgo)
+			default_search_engine = os.getenv('BROWSER_USE_DEFAULT_SEARCH_ENGINE', 'duckduckgo').lower()
 			
-			if default_search_engine == 'duckduckgo':
+			if default_search_engine == 'google':
+				# Google disabled, redirect to DuckDuckGo
+				search_url = f'https://duckduckgo.com/?q={params.query}&iar=web&iax=web&ia=web'
+				logo = '🦆'
+				engine_name = 'DuckDuckGo (Google disabled)'
+			elif default_search_engine == 'duckduckgo':
 				# Use DuckDuckGo
 				search_url = f'https://duckduckgo.com/?q={params.query}'
 				logo = '🦆'
 				engine_name = 'DuckDuckGo'
 			else:
-				# Default to Google
-				search_url = f'https://www.google.com/search?q={params.query}&udm=14'
-				logo = '🔍'
-				engine_name = 'Google'
+				# Default to DuckDuckGo
+				search_url = f'https://duckduckgo.com/?q={params.query}&iar=web&iax=web&ia=web'
+				logo = '🦆'
+				engine_name = 'DuckDuckGo'
 				
 			try:
 				# Navigate to search URL
