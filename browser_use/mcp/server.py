@@ -1024,6 +1024,8 @@ class BrowserUseServer:
 
 	async def _get_agent_status(self, task_id: str | None = None) -> str:
 		"""Get current agent task status and progress."""
+		import re  # Import at function level to avoid scope issues
+		
 		# If no task_id provided, use current running task
 		if not task_id:
 			task_id = self._agent_task_id
@@ -1059,10 +1061,6 @@ class BrowserUseServer:
 				
 				if action_str:
 					try:
-						# Extract action type and try to get more details from the JSON
-						import re
-						import json
-						
 						# Look for action type patterns like "go_to_url", "click_element", etc.
 						action_match = re.search(r'"(\w+)":\s*({[^}]*})', action_str)
 						if action_match:
@@ -1116,7 +1114,7 @@ class BrowserUseServer:
 							# Fallback: clean up and truncate action string
 							clean_action = action_str.replace('"', '').replace('{', '').replace('}', '').strip()
 							description = clean_action[:80] + '...' if len(clean_action) > 80 else clean_action
-					except:
+					except Exception:
 						# If parsing fails completely, show truncated original
 						description = action_str[:80] + '...' if len(action_str) > 80 else action_str
 				
