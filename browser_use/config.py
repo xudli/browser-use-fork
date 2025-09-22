@@ -218,7 +218,7 @@ class FlatEnvConfig(BaseSettings):
 	# Stealth and anti-detection settings
 	BROWSER_USE_STEALTH: bool = Field(default=True)
 	BROWSER_USE_ENABLE_DEFAULT_EXTENSIONS: bool = Field(default=True)
-	BROWSER_USE_WAIT_BETWEEN_ACTIONS: float = Field(default=2.0)
+	BROWSER_USE_WAIT_BETWEEN_ACTIONS: float = Field(default=0.5)
 
 	# Proxy env vars
 	BROWSER_USE_PROXY_URL: str | None = Field(default=None)

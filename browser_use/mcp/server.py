@@ -514,7 +514,7 @@ class BrowserUseServer:
 		env_config = os.environ
 		stealth_enabled = env_config.get('BROWSER_USE_STEALTH', 'true').lower() in ('true', '1', 'yes')
 		extensions_enabled = env_config.get('BROWSER_USE_ENABLE_DEFAULT_EXTENSIONS', 'true').lower() in ('true', '1', 'yes')
-		wait_time = float(env_config.get('BROWSER_USE_WAIT_BETWEEN_ACTIONS', '2.0'))
+		wait_time = float(env_config.get('BROWSER_USE_WAIT_BETWEEN_ACTIONS', '0.5'))
 
 		# Merge profile config with defaults and overrides
 		profile_data = {
@@ -1043,38 +1043,87 @@ class BrowserUseServer:
 		filtered_progress.pop('model', None)
 		filtered_progress.pop('use_vision', None)
 
-		# Simplify steps information - only show step number and brief action summary
+		# Simplify steps information - format as numbered list with action details
 		if 'steps' in filtered_progress and filtered_progress['steps']:
-			simplified_steps = []
+			steps_descriptions = []
 			for step_info in filtered_progress['steps']:
-				simplified_step = {
-					'step': step_info.get('step', 'unknown'),
-				}
+				step_num = step_info.get('step', 'unknown')
 				
-				# Create brief action summary
+				# Get URL for context
+				url = step_info.get('url', '')
+				url_info = f" on {url}" if url and url != 'about:blank' else ""
+				
+				# Create action description with details
 				action_str = step_info.get('action', '')
+				description = 'unknown action'
+				
 				if action_str:
-					# Extract action type from the action string (e.g., "go_to_url" from full action)
 					try:
-						# Try to parse as JSON to extract action type
+						# Extract action type and try to get more details from the JSON
 						import re
+						import json
+						
 						# Look for action type patterns like "go_to_url", "click_element", etc.
-						action_match = re.search(r'"(\w+)":\s*{', action_str)
+						action_match = re.search(r'"(\w+)":\s*({[^}]*})', action_str)
 						if action_match:
 							action_type = action_match.group(1)
-							simplified_step['action'] = action_type
+							action_params_str = action_match.group(2)
+							
+							try:
+								# Try to parse the parameters
+								action_params = json.loads(action_params_str)
+								
+								# Create descriptions based on action type with parameters
+								if action_type == 'go_to_url':
+									url_param = action_params.get('url', '')
+									description = f"go_to_url: {url_param}"
+								elif action_type == 'click_element':
+									index = action_params.get('index', '')
+									description = f"click_element: index {index}"
+								elif action_type == 'input_text':
+									text = action_params.get('text', '')
+									index = action_params.get('index', '')
+									# Truncate long text but show beginning
+									text_preview = text[:50] + '...' if len(text) > 50 else text
+									description = f"input_text: '{text_preview}' at index {index}"
+								elif action_type in ['search', 'search_duckduckgo']:
+									query = action_params.get('query', '')
+									query_preview = query[:50] + '...' if len(query) > 50 else query
+									description = f"{action_type}: '{query_preview}'"
+								elif action_type == 'scroll':
+									direction = action_params.get('down', True)
+									direction_str = 'down' if direction else 'up'
+									description = f"scroll: {direction_str}"
+								elif action_type == 'extract_page_content':
+									value = action_params.get('value', '')
+									value_preview = value[:50] + '...' if len(value) > 50 else value
+									description = f"extract_page_content: '{value_preview}'"
+								else:
+									# For other actions, show type and key parameters
+									key_params = []
+									for key, value in action_params.items():
+										if isinstance(value, str) and len(value) < 30:
+											key_params.append(f"{key}={value}")
+										elif isinstance(value, (int, bool)):
+											key_params.append(f"{key}={value}")
+									params_str = ', '.join(key_params[:2])  # Show first 2 params
+									description = f"{action_type}: {params_str}" if params_str else action_type
+								
+							except json.JSONDecodeError:
+								# If JSON parsing fails, just show the action type
+								description = action_type
 						else:
-							# Fallback: truncate long action strings
-							simplified_step['action'] = action_str[:50] + '...' if len(action_str) > 50 else action_str
+							# Fallback: clean up and truncate action string
+							clean_action = action_str.replace('"', '').replace('{', '').replace('}', '').strip()
+							description = clean_action[:80] + '...' if len(clean_action) > 80 else clean_action
 					except:
-						# If parsing fails, just truncate
-						simplified_step['action'] = action_str[:50] + '...' if len(action_str) > 50 else action_str
-				else:
-					simplified_step['action'] = 'unknown'
-					
-				simplified_steps.append(simplified_step)
+						# If parsing fails completely, show truncated original
+						description = action_str[:80] + '...' if len(action_str) > 80 else action_str
+				
+				steps_descriptions.append(f"{step_num}. {description}{url_info}")
 			
-			filtered_progress['steps'] = simplified_steps
+			# Join all steps into a single string
+			filtered_progress['steps'] = '; '.join(steps_descriptions) if steps_descriptions else 'No steps completed'
 
 		# Add runtime info for active tasks
 		if filtered_progress.get('status') in ['starting', 'running'] and 'start_time' in filtered_progress:
