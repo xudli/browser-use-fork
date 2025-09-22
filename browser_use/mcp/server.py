@@ -396,6 +396,20 @@ class BrowserUseServer:
 						},
 					},
 				),
+				types.Tool(
+					name='llm_direct_answer',
+					description='Answer questions directly using LLM knowledge without browsing. Use for general knowledge, facts, calculations, or well-known information that does not require web search.',
+					inputSchema={
+						'type': 'object',
+						'properties': {
+							'question': {
+								'type': 'string',
+								'description': 'The question to answer using LLM knowledge'
+							}
+						},
+						'required': ['question']
+					},
+				),
 			]
 
 		@self.server.call_tool()
@@ -437,6 +451,10 @@ class BrowserUseServer:
 
 		elif tool_name == 'browser_agent_stop':
 			return await self._stop_agent_task(arguments.get('task_id'))
+
+		# LLM direct answer tool (no browser session required)
+		elif tool_name == 'llm_direct_answer':
+			return await self._llm_direct_answer(arguments['question'])
 
 		# Direct browser control tools (require active session)
 		elif tool_name.startswith('browser_'):
@@ -1060,6 +1078,59 @@ class BrowserUseServer:
 			self._save_task_progress(self._agent_task_id, progress)
 
 		return f'Agent task {self._agent_task_id} stopped'
+
+	async def _llm_direct_answer(self, question: str) -> str:
+		"""Answer a question directly using LLM knowledge without browsing."""
+		try:
+			# Initialize LLM if not already available
+			if not self.llm:
+				# Import required modules
+				from browser_use.llm.openai.chat import ChatOpenAI
+				from browser_use.config import get_default_llm
+				
+				# Initialize LLM from config
+				llm_config = get_default_llm(self.config)
+				if api_key := llm_config.get('api_key'):
+					self.llm = ChatOpenAI(
+						model=llm_config.get('model', 'gpt-4.1'),
+						api_key=api_key,
+						temperature=llm_config.get('temperature', 0.7),
+					)
+				else:
+					return "Error: No LLM API key configured"
+			
+			# Create prompt for direct answering with steps
+			prompt = f"""Answer the following question using your knowledge. Provide both the final answer and the steps you used to reach that answer.
+
+Question: {question}
+
+Please format your response as follows:
+
+**Steps:**
+1. [First step in your reasoning process]
+2. [Second step in your reasoning process]
+3. [Additional steps as needed]
+
+**Final Answer:**
+[Your concise, factual answer]"""
+
+			# Import required message type
+			from browser_use.llm.messages import UserMessage
+			
+			# Call LLM directly
+			response = await asyncio.wait_for(
+				self.llm.ainvoke([UserMessage(content=prompt)]),
+				timeout=30.0
+			)
+			
+			answer = response.completion.strip()
+			logger.info(f'🧠 Direct answer provided for: {question[:50]}...')
+			
+			return answer
+			
+		except Exception as e:
+			logger.error(f'Failed to get direct answer: {e}')
+			return f'Error getting direct answer: {str(e)}'
 
 	async def _cleanup_expired_tasks_loop(self) -> None:
 		"""Background task to clean up expired tasks every 5 minutes."""

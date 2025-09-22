@@ -103,3 +103,8 @@ class GetDropdownOptionsAction(BaseModel):
 class SelectDropdownOptionAction(BaseModel):
 	index: int = Field(ge=1, description='index of the dropdown element to select an option for')
 	text: str = Field(description='the text or exact value of the option to select')
+
+
+class DirectAnswerAction(BaseModel):
+	question: str = Field(description='The question to answer using LLM knowledge without browsing')
+	reasoning: str = Field(description='Brief explanation of why this question can be answered with existing knowledge')

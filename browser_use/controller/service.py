@@ -31,6 +31,7 @@ from browser_use.controller.registry.service import Registry
 from browser_use.controller.views import (
 	ClickElementAction,
 	CloseTabAction,
+	DirectAnswerAction,
 	DoneAction,
 	ExtractPageContentAction,
 	GetDropdownOptionsAction,
@@ -106,7 +107,7 @@ class Controller(Generic[Context]):
 
 		# Basic Navigation Actions
 		@self.registry.action(
-			'Search using Google directly (may trigger reCAPTCHA). Consider using smart_search instead.',
+			'Search using Google directly (may trigger reCAPTCHA). Consider using search instead for automatic engine selection.',
 			param_model=SearchGoogleAction,
 		)
 		async def search_google(params: SearchGoogleAction, browser_session: BrowserSession):
@@ -212,7 +213,7 @@ class Controller(Generic[Context]):
 				return ActionResult(error=f'Failed to search DuckDuckGo for "{params.query}": {clean_msg}')
 
 		@self.registry.action(
-			'Search using the configured default search engine (Google or DuckDuckGo based on BROWSER_USE_DEFAULT_SEARCH_ENGINE env var)',
+			'Search the web using the configured search engine (recommended - automatically uses Google or DuckDuckGo based on configuration)',
 			param_model=SearchAction,
 		)
 		async def search(params: SearchAction, browser_session: BrowserSession):
@@ -247,6 +248,43 @@ class Controller(Generic[Context]):
 				logger.error(f'Failed to search {engine_name}: {e}')
 				clean_msg = extract_llm_error_message(e)
 				return ActionResult(error=f'Failed to search {engine_name} for "{params.query}": {clean_msg}')
+
+		@self.registry.action(
+			'Answer questions directly using LLM knowledge without browsing. Use when the question can be answered with general knowledge, facts, or well-known information.',
+			param_model=DirectAnswerAction,
+		)
+		async def direct_answer(params: DirectAnswerAction, page_extraction_llm: BaseChatModel):
+			try:
+				# Create a prompt for the LLM to answer the question directly
+				prompt = f"""Answer the following question using your knowledge. Be concise and accurate.
+
+Question: {params.question}
+
+Reasoning for using direct knowledge: {params.reasoning}
+
+Please provide a direct, factual answer."""
+
+				# Call the LLM directly
+				response = await asyncio.wait_for(
+					page_extraction_llm.ainvoke([UserMessage(content=prompt)]),
+					timeout=30.0,
+				)
+				
+				answer = response.completion.strip()
+				memory = f"Direct answer to: {params.question}"
+				msg = f'🧠 {memory}'
+				logger.info(msg)
+				
+				return ActionResult(
+					extracted_content=answer,
+					include_in_memory=True,
+					long_term_memory=f"Answered directly: {params.question} - {answer[:100]}{'...' if len(answer) > 100 else ''}",
+				)
+				
+			except Exception as e:
+				logger.error(f'Failed to get direct answer: {e}')
+				clean_msg = extract_llm_error_message(e)
+				return ActionResult(error=f'Failed to answer question "{params.question}": {clean_msg}')
 
 		@self.registry.action(
 			'Navigate to URL, set new_tab=True to open in new tab, False to navigate in current tab', param_model=GoToUrlAction
