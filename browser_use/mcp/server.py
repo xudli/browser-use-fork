@@ -858,7 +858,7 @@ class BrowserUseServer:
 			return f'Error: Agent task already running (ID: {self._agent_task_id}). Use browser_agent_stop to stop it first.'
 
 		# Get configuration from environment variables
-		max_steps = int(os.getenv('BROWSER_AGENT_MAX_STEPS', '100'))
+		max_steps = int(os.getenv('BROWSER_AGENT_MAX_STEPS', '30'))
 		model = os.getenv('BROWSER_AGENT_MODEL', 'gpt-5')
 		use_vision = os.getenv('BROWSER_AGENT_USE_VISION', 'true').lower() == 'true'
 
@@ -984,8 +984,30 @@ class BrowserUseServer:
 
 			# Store final results
 			final_progress = self._load_task_progress(task_id) or {}
-			final_progress['status'] = 'completed'
-			final_progress['success'] = history.is_successful()
+			
+			# Improved task completion logic
+			if len(history.history) >= max_steps:
+				if history.is_successful():
+					final_progress['status'] = 'completed'  
+					final_progress['success'] = True
+				else:
+					final_progress['status'] = 'failed'
+					final_progress['success'] = False
+					final_progress['error'] = f'Task failed: reached maximum steps ({max_steps}) without completion'
+			else:
+				# Task stopped before max steps
+				if history.is_successful() is True:
+					final_progress['status'] = 'completed'
+					final_progress['success'] = True
+				elif history.is_successful() is False:
+					final_progress['status'] = 'failed'
+					final_progress['success'] = False
+					final_progress['error'] = 'Task completed but agent reported failure'
+				else:  # is_successful() is None - no done action called
+					final_progress['status'] = 'failed'
+					final_progress['success'] = False
+					final_progress['error'] = 'Task stopped without completion - agent did not call done action'
+			
 			final_progress['end_time'] = time.time()
 			
 			results = []
@@ -1005,6 +1027,10 @@ class BrowserUseServer:
 				valid_urls = [str(url) for url in urls if url is not None]
 				if valid_urls:
 					results.append(f'URLs visited: {", ".join(valid_urls)}')
+
+			# Add failure reason if task failed due to max steps
+			if final_progress.get('status') == 'failed' and 'reached maximum steps' in final_progress.get('error', ''):
+				results.append(f'Failure reason: {final_progress["error"]}')
 
 			final_progress['result'] = '\n'.join(results)
 			self._save_task_progress(task_id, final_progress)

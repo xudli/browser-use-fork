@@ -163,9 +163,9 @@ class Controller(Generic[Context]):
 				engine_name = 'DuckDuckGo'
 				
 			try:
-				# Navigate to search URL
+				# Navigate to search URL - use current tab to avoid opening multiple search tabs
 				event = browser_session.event_bus.dispatch(
-					NavigateToUrlEvent(url=search_url, new_tab=True)
+					NavigateToUrlEvent(url=search_url, new_tab=False)
 				)
 				await event
 				await event.event_result(raise_if_any=True, raise_if_none=False)
