@@ -1097,7 +1097,7 @@ class BrowserUseServer:
 								# Try to parse the parameters
 								action_params = json.loads(action_params_str)
 								
-								# Create descriptions based on action type with parameters
+								# Create detailed descriptions with full parameters
 								if action_type == 'go_to_url':
 									url_param = action_params.get('url', '')
 									description = f"go_to_url: {url_param}"
@@ -1107,47 +1107,47 @@ class BrowserUseServer:
 								elif action_type == 'input_text':
 									text = action_params.get('text', '')
 									index = action_params.get('index', '')
-									# Truncate long text but show beginning
-									text_preview = text[:50] + '...' if len(text) > 50 else text
-									description = f"input_text: '{text_preview}' at index {index}"
+									description = f"input_text: '{text}' at index {index}"
 								elif action_type in ['search', 'search_duckduckgo']:
 									query = action_params.get('query', '')
-									query_preview = query[:50] + '...' if len(query) > 50 else query
-									description = f"{action_type}: '{query_preview}'"
+									description = f"{action_type}: '{query}'"
 								elif action_type == 'scroll':
 									direction = action_params.get('down', True)
 									direction_str = 'down' if direction else 'up'
-									description = f"scroll: {direction_str}"
+									pages = action_params.get('num_pages', '')
+									description = f"scroll: {direction_str}" + (f" {pages} pages" if pages else "")
 								elif action_type == 'extract_page_content':
 									value = action_params.get('value', '')
-									value_preview = value[:50] + '...' if len(value) > 50 else value
-									description = f"extract_page_content: '{value_preview}'"
+									description = f"extract_page_content: '{value}'"
+								elif action_type == 'wait':
+									seconds = action_params.get('seconds', '')
+									description = f"wait: {seconds} seconds"
 								else:
-									# For other actions, show type and key parameters
-									key_params = []
+									# For all other actions, show complete parameter details
+									params_list = []
 									for key, value in action_params.items():
-										if isinstance(value, str) and len(value) < 30:
-											key_params.append(f"{key}={value}")
-										elif isinstance(value, (int, bool)):
-											key_params.append(f"{key}={value}")
-									params_str = ', '.join(key_params[:2])  # Show first 2 params
+										if isinstance(value, str):
+											params_list.append(f"{key}='{value}'")
+										else:
+											params_list.append(f"{key}={value}")
+									params_str = ', '.join(params_list)
 									description = f"{action_type}: {params_str}" if params_str else action_type
 								
 							except json.JSONDecodeError:
 								# If JSON parsing fails, just show the action type
 								description = action_type
 						else:
-							# Fallback: clean up and truncate action string
+							# Fallback: show complete action string without truncation
 							clean_action = action_str.replace('"', '').replace('{', '').replace('}', '').strip()
-							description = clean_action[:80] + '...' if len(clean_action) > 80 else clean_action
+							description = clean_action
 					except Exception:
-						# If parsing fails completely, show truncated original
-						description = action_str[:80] + '...' if len(action_str) > 80 else action_str
+						# If parsing fails completely, show complete original action string
+						description = action_str
 				
 				steps_descriptions.append(f"{step_num}. {description}{url_info}")
 			
-			# Join all steps into a single string
-			filtered_progress['steps'] = '; '.join(steps_descriptions) if steps_descriptions else 'No steps completed'
+			# Join all steps with newlines for better readability of detailed information
+			filtered_progress['steps'] = '\n'.join(steps_descriptions) if steps_descriptions else 'No steps completed'
 
 		# Add runtime info for active tasks
 		if filtered_progress.get('status') in ['starting', 'running'] and 'start_time' in filtered_progress:
